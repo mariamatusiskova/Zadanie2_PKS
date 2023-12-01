@@ -37,6 +37,7 @@ class Server:
             # getting details about server and receiver
             #server_port = self.menu.get_port_input("receiver")
             server_details = (SERVER_IP, server_port)
+            server_socket.bind(server_details)
             initial_header = Header(FlagEnum.ACK.value, 0, 0)
 
             # receiving response from the client

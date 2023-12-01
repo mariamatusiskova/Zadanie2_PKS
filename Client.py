@@ -36,6 +36,7 @@ class Client:
             # server_ip, server_port = self.menu.get_ip_input("server/receiver"), self.menu.get_port_input(
             #     "server/receiver")
             server_details = (server_ip, server_port)
+            client_socket.bind(server_details)
             initial_header = Header(FlagEnum.SYN.value, 0, 0)
 
             # sending initial_header to server
