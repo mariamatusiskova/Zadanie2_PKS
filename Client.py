@@ -36,7 +36,7 @@ class Client:
             # server_ip, server_port = self.menu.get_ip_input("server/receiver"), self.menu.get_port_input(
             #     "server/receiver")
             server_details = (server_ip, server_port)
-            initial_header = Header(FlagEnum.SYN, 0, 0)
+            initial_header = Header(FlagEnum.SYN.value, 0, 0)
 
             # sending initial_header to server
             client_socket.sendto(initial_header, server_details)
@@ -46,7 +46,7 @@ class Client:
 
             # processing received data
             initial_header.flag = int.from_bytes(received_flag[:1], 'big')
-            if initial_header.flag is FlagEnum.ACK:
+            if initial_header.flag is FlagEnum.ACK.value:
                 print(f"Connection initialized. Server details: {server_address}")
                 self.client_sender(client_socket, server_address)
             else:
