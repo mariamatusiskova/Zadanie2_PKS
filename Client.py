@@ -6,29 +6,12 @@ from Header import Header
 from Validator import Validator
 
 
-def get_file_message_from_input():
-    while True:
-        file_path = str(input("Enter the path of the file to send: ")).encode('utf-8')
-
-        try:
-            with open(file_path, 'rb') as file_object:
-                file_content = file_object.read()
-                print(f'file content: {file_content}')
-                print(f'File name: {os.path.basename(file_path)}')
-                print(f'File size: {os.path.getsize(file_path)}B')
-                print(f'Absolute path: {os.path.abspath(file_path)}')
-                return file_content
-        except FileNotFoundError:
-            print("Didn't find the file. Try again.")
-        except Exception as e:
-            print(f"An error occurred: {e}. Try again.")
-
-
 class Client:
     def __init__(self, menu):
         self.menu = menu
         self.validator = Validator()
 
+    # menu for initializing connection
     def handle_client_input(self, client_input: str):
         while True:
             if client_input == 'S':
@@ -44,25 +27,13 @@ class Client:
                 print("Invalid input. Use 'S' as a settings of the client, 'RRM' as a role reversal message or 'Q' as quit.")
                 self.menu.client_menu()
 
-    def client_sender(self, client_socket, server_address):
-        while True:
-            message_type = self.pick_text_or_file()
-
-            if message_type == 'T':
-                text_message = self.get_text_message_from_input()
-                self.send_message(client_socket, server_address, message_type, text_message)
-            elif message_type == 'F':
-                file_message = get_file_message_from_input()
-                self.send_message(client_socket, server_address, message_type, file_message)
-            else:
-                print("Invalid command!")
-
     def initialize_client_connection(self):
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
         try:
             # getting details about server
-            server_ip, server_port = self.menu.get_ip_input("server/receiver"), self.menu.get_port_input("server/receiver")
+            server_ip, server_port = self.menu.get_ip_input("server/receiver"), self.menu.get_port_input(
+                "server/receiver")
             server_details = (server_ip, server_port)
             initial_header = Header(FlagEnum.SYN, 0, 0)
 
@@ -82,6 +53,19 @@ class Client:
         except:
             print("Connection failed!")
 
+    def client_sender(self, client_socket, server_address):
+        while True:
+            message_type = self.pick_text_or_file()
+
+            if message_type == 'T':
+                text_message = self.get_text_message_from_input()
+                self.send_message(client_socket, server_address, message_type, text_message)
+            elif message_type == 'F':
+                file_message = self.get_file_message_from_input()
+                self.send_message(client_socket, server_address, message_type, file_message)
+            else:
+                print("Invalid command!")
+
     def pick_text_or_file(self):
         print('- [F] file message')
         print('- [T] text message')
@@ -95,6 +79,23 @@ class Client:
             self.pick_text_or_file()
 
         return message_type
+
+    def get_file_message_from_input(self):
+        while True:
+            file_path = str(input("Enter the path of the file to send: ")).encode('utf-8')
+
+            try:
+                with open(file_path, 'rb') as file_object:
+                    file_content = file_object.read()
+                    print(f'file content: {file_content}')
+                    print(f'File name: {os.path.basename(file_path)}')
+                    print(f'File size: {os.path.getsize(file_path)}B')
+                    print(f'Absolute path: {os.path.abspath(file_path)}')
+                    return file_content
+            except FileNotFoundError:
+                print("Didn't find the file. Try again.")
+            except Exception as e:
+                print(f"An error occurred: {e}. Try again.")
 
     def send_message(self, client_socket, server_address, message_type, message):
         pass

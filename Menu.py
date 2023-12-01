@@ -1,6 +1,7 @@
 import sys
 
 from Client import Client
+from Server import Server
 from Validator import Validator
 
 
@@ -17,7 +18,7 @@ class Menu:
                 break
             elif user_input == 'S':
                 print("Running as server.")
-                # server_menu()
+                self.server_menu()
                 break
             elif user_input == 'Q':
                 self.quit_programme()
@@ -68,3 +69,13 @@ class Menu:
         print(f'Picked client_input: {client_input}')
         client = Client(self)
         client.handle_client_input(client_input)
+
+    def server_menu(self):
+        print('- [S] set port of the server')
+        print('- [RRM] switch role to client')
+        print('- [Q] quit')
+        server_input = self.options()
+        server_input = server_input.upper()
+        print(f'Picked server_input: {server_input}')
+        server = Server(self)
+        server.handle_server_input(server_input)
