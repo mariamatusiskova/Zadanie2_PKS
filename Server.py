@@ -39,12 +39,12 @@ class Server:
             server_details = (SERVER_IP, server_port)
             server_socket.bind(server_details)
             initial_header = Header(FlagEnum.ACK.value, 0, 0)
+            initial_data = initial_header.flag + initial_header.frag_order + initial_header.crc
 
             # receiving response from the client
             received_flag, client_address = server_socket.recvfrom(1465)
-
             # sending initial_header to client
-            server_socket.sendto(initial_header, server_details)
+            server_socket.sendto(initial_data, server_details)
 
             # processing received data
             initial_header.flag = int.from_bytes(received_flag[:1], 'big')

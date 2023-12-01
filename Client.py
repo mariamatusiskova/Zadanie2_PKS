@@ -36,11 +36,12 @@ class Client:
             # server_ip, server_port = self.menu.get_ip_input("server/receiver"), self.menu.get_port_input(
             #     "server/receiver")
             server_details = (server_ip, server_port)
-            client_socket.bind(server_details)
+            #client_socket.bind(server_details)
             initial_header = Header(FlagEnum.SYN.value, 0, 0)
+            initial_data = initial_header.flag + initial_header.frag_order + initial_header.crc
 
             # sending initial_header to server
-            client_socket.sendto(initial_header, server_details)
+            client_socket.sendto(initial_data, server_details)
 
             # receiving response from the server
             received_flag, server_address = client_socket.recvfrom(1465)
