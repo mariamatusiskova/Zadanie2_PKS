@@ -39,11 +39,11 @@ class Server:
             server_details = (SERVER_IP, server_port)
             initial_header = Header(FlagEnum.ACK, 0, 0)
 
-            # sending initial_header to client
-            server_socket.sendto(initial_header, server_details)
-
             # receiving response from the client
             received_flag, client_address = server_socket.recvfrom(1500)
+
+            # sending initial_header to client
+            server_socket.sendto(initial_header, server_details)
 
             # processing received data
             initial_header.flag = int.from_bytes(received_flag[:1], 'big')
