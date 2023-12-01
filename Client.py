@@ -42,7 +42,7 @@ class Client:
             client_socket.sendto(initial_header, server_details)
 
             # receiving response from the server
-            received_flag, server_address = client_socket.recvfrom(1500)
+            received_flag, server_address = client_socket.recvfrom(1465)
 
             # processing received data
             initial_header.flag = int.from_bytes(received_flag[:1], 'big')
@@ -51,7 +51,8 @@ class Client:
                 self.client_sender(client_socket, server_address)
             else:
                 print("Connection failed!")
-        except:
+        except Exception as e:
+            print(f"An error occurred: {e}. Try again.")
             print("Connection failed!")
 
     def client_sender(self, client_socket, server_address):

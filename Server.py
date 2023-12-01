@@ -40,7 +40,7 @@ class Server:
             initial_header = Header(FlagEnum.ACK.value, 0, 0)
 
             # receiving response from the client
-            received_flag, client_address = server_socket.recvfrom(1500)
+            received_flag, client_address = server_socket.recvfrom(1465)
 
             # sending initial_header to client
             server_socket.sendto(initial_header, server_details)
@@ -52,8 +52,9 @@ class Server:
                 self.server_sender(server_socket, client_address)
             else:
                 print("Connection failed! Blabla")
-        except:
-            print("Connection failed!")
+        except Exception as e:
+                print(f"An error occurred: {e}. Try again.")
+                print("Connection failed!")
 
     def server_sender(self, server_socket, client_address):
         pass
