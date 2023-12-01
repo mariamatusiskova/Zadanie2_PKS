@@ -33,8 +33,9 @@ class Server:
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
         try:
+            server_port = 9090
             # getting details about server and receiver
-            server_port = self.menu.get_port_input("receiver")
+            # server_port = self.menu.get_port_input("receiver")
             server_details = (SERVER_IP, server_port)
             initial_header = Header(FlagEnum.ACK, 0, 0)
 

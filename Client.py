@@ -31,9 +31,10 @@ class Client:
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
         try:
+            server_ip, server_port = "127.0.0.1", 9090
             # getting details about server
-            server_ip, server_port = self.menu.get_ip_input("server/receiver"), self.menu.get_port_input(
-                "server/receiver")
+            # server_ip, server_port = self.menu.get_ip_input("server/receiver"), self.menu.get_port_input(
+            #     "server/receiver")
             server_details = (server_ip, server_port)
             initial_header = Header(FlagEnum.SYN, 0, 0)
 
