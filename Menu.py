@@ -36,7 +36,7 @@ class Menu:
         self.handle_user_input(user_input)
 
     @staticmethod
-    def options():
+    def options() -> str:
         return input("Pick one from the options:")
 
     @staticmethod
@@ -44,7 +44,7 @@ class Menu:
         print("The program exited.")
         sys.exit(1)
 
-    def get_ip_input(self, role: str):
+    def get_ip_input(self, role: str) -> str:
         while True:
             ip = input(f"Enter IP address of the {role}: ")
             if self.validator.is_valid_ip(ip):
@@ -52,7 +52,7 @@ class Menu:
             else:
                 print("Invalid IP address. Please enter a valid IP.")
 
-    def get_port_input(self, role):
+    def get_port_input(self, role: str) -> str:
         while True:
             port = input(f"Enter port of the {role}: ")
             if self.validator.is_valid_port(port):

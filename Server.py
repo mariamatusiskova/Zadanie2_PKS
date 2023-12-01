@@ -4,7 +4,8 @@ from FlagEnum import FlagEnum
 from Header import Header
 from Validator import Validator
 
-SERVER_IP = "0.0.0.0"
+# SERVER_IP = "0.0.0.0"
+SERVER_IP = "localhost"
 SERVER_HOST_IP = socket.gethostbyname(socket.gethostname())
 
 
@@ -33,13 +34,14 @@ class Server:
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
         try:
+            # uncomment for testing purpose
             server_port = 50000
             # getting details about server and receiver
-            #server_port = self.menu.get_port_input("receiver")
-            server_details = (SERVER_IP, server_port)
+            # server_port = self.menu.get_port_input("receiver")
+            server_details = (SERVER_HOST_IP, server_port)
             server_socket.bind(server_details)
             initial_header = Header(FlagEnum.ACK.value, 0, 0)
-            initial_data = initial_header.flag + initial_header.frag_order + initial_header.crc
+            initial_data = initial_header.get_header_body()
 
             # receiving response from the client
             received_flag, client_address = server_socket.recvfrom(1465)
@@ -54,7 +56,7 @@ class Server:
             else:
                 print("Connection failed!")
         except Exception as e:
-                print(f"An error occurred: {e}. Try again.")
+            print(f"An error occurred: {e}. Try again.")
 
-    def server_sender(self, server_socket, client_address):
+    def server_sender(self, server_socket: socket, client_address: tuple):
         pass
