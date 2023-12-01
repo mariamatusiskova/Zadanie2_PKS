@@ -35,7 +35,7 @@ class Server:
         try:
             server_port = 50000
             # getting details about server and receiver
-            # server_port = self.menu.get_port_input("receiver")
+            #server_port = self.menu.get_port_input("receiver")
             server_details = (SERVER_IP, server_port)
             initial_header = Header(FlagEnum.ACK, 0, 0)
 
