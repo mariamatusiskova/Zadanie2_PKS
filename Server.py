@@ -51,7 +51,7 @@ class Server:
                 print(f"Connection initialized. Client details: {client_address}")
                 self.server_sender(server_socket, client_address)
             else:
-                print("Connection failed!")
+                print("Connection failed! Blabla")
         except:
             print("Connection failed!")
 
