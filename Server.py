@@ -48,14 +48,13 @@ class Server:
 
             # processing received data
             initial_header.flag = int.from_bytes(received_flag[:1], 'big')
-            if initial_header.flag is FlagEnum.ACK.value:
+            if initial_header.flag is FlagEnum.SYN.value:
                 print(f"Connection initialized. Client details: {client_address}")
                 self.server_sender(server_socket, client_address)
             else:
-                print("Connection failed! Blabla")
+                print("Connection failed!")
         except Exception as e:
                 print(f"An error occurred: {e}. Try again.")
-                print("Connection failed!")
 
     def server_sender(self, server_socket, client_address):
         pass

@@ -55,7 +55,6 @@ class Client:
                 print("Connection failed!")
         except Exception as e:
             print(f"An error occurred: {e}. Try again.")
-            print("Connection failed!")
 
     def client_sender(self, client_socket, server_address):
         while True:
