@@ -33,7 +33,7 @@ class Server:
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
         try:
-            server_port = 9090
+            server_port = 50000
             # getting details about server and receiver
             # server_port = self.menu.get_port_input("receiver")
             server_details = (SERVER_IP, server_port)
