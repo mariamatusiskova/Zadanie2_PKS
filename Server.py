@@ -44,7 +44,7 @@ class Server:
             # receiving response from the client
             received_flag, client_address = server_socket.recvfrom(1465)
             # sending initial_header to client
-            server_socket.sendto(initial_data, server_details)
+            server_socket.sendto(initial_data, client_address)
 
             # processing received data
             initial_header.flag = int.from_bytes(received_flag[:1], 'big')
