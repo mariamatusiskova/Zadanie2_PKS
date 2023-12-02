@@ -1,4 +1,4 @@
-# Sorce: https://medium.com/@vbabak/implementing-crc32-in-typescript-ff3453a1a9e7
+# Source: https://medium.com/@vbabak/implementing-crc32-in-typescript-ff3453a1a9e7
 
 class CRC32:
     def __init__(self):

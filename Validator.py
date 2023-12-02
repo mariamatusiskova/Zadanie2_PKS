@@ -50,4 +50,7 @@ class Validator:
         else:
             return True
 
-
+    @staticmethod
+    def is_crc_valid(r_data: bytes, r_crc: int, crc) -> bool:
+        calculated_crc = crc.calculate(r_data)
+        return calculated_crc == r_crc

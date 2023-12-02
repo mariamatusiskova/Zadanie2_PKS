@@ -60,11 +60,21 @@ class Menu:
             else:
                 print("Invalid port, should be in interval <0, 65 535>. Please enter a valid port.")
 
-    def get_flag(self, data) -> int:
+    @staticmethod
+    def get_flag(data) -> int:
         return int.from_bytes(data[:1], 'big')
 
-    def get_frad_order(self, data) -> int:
+    @staticmethod
+    def get_frag_order(data) -> int:
         return int.from_bytes(data[1:3], 'big')
+
+    @staticmethod
+    def get_crc(data) -> int:
+        return int.from_bytes(data[3:7], 'big')
+
+    @staticmethod
+    def get_data(data) -> bytes:
+        return data[7:]
 
     def client_menu(self):
         is_address = False
@@ -106,4 +116,3 @@ class Menu:
                 is_address, server_port = server.handle_server_input(server_input, server_port)
             else:
                 is_address, server_port = server.handle_server_input(server_input)
-

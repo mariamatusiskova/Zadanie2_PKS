@@ -39,9 +39,10 @@ class Client:
         self.frag_order = 0
         client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
+        # uncomment for testing purpose
+        server_ip, server_port = "localhost", 50000
+
         try:
-            # uncomment for testing purpose
-            server_ip, server_port = "localhost", 50000
             # getting details about server
             if sent_server_ip and sent_server_port:
                 server_ip, server_port = sent_server_ip, sent_server_port
@@ -49,7 +50,6 @@ class Client:
                 # server_ip, server_port = self.menu.get_ip_input("server/receiver"), self.menu.get_port_input("server/receiver")
 
             server_details = (server_ip, server_port)
-            # client_socket.bind("localhost", 50000) ??????????????????????????????????????????????????????????????????????????????????????????????????????
 
             # sending initial_header to server
             client_socket.sendto(self.initialize_message(FlagEnum.SYN.value, self.frag_order), server_details)
@@ -59,7 +59,7 @@ class Client:
 
             # processing received data
             r_flag = self.menu.get_flag(received_flag)
-            if r_flag is FlagEnum.ACK.value:
+            if self.is_ACK(r_flag):
                 print(f"Connection initialized. Server details: {server_address}")
                 if client_socket is not None:
                     self.client_sender(client_socket, server_address)
@@ -68,7 +68,10 @@ class Client:
                 print("Connection failed!")
                 print("Message: NACK\n Connection failed!")
         except Exception as e:
-            print(f"An error occurred: {e}. Try again.")
+            print(f"blechy An error occurred: {e}. Try again.")
+
+        # Return default values in case of failure
+        return server_ip, server_port
 
     def pick_text_or_file(self) -> str:
         print('- [F] file message')
@@ -83,20 +86,29 @@ class Client:
             self.pick_text_or_file()
         return message_type
 
-    def get_file_message_from_input(self) -> (bytes, str):
+    @staticmethod
+    def get_file_message_from_input() -> (bytes, str):
         while True:
             file_path = str(input("Enter the path of the file to send: "))
             convert_path_to_os = os.path.normpath(file_path)
 
             try:
-                with open(convert_path_to_os, 'rb') as file_object:
+                with open("/Users/maria/Desktop/ZS_2023_2024/PKS/Zadanie2/images.jpeg", 'rb') as file_object:
                     file_content = file_object.read()
-                    print(f'file content: {file_content}')
                     file_name = os.path.basename(convert_path_to_os)
                     print(f'File name: {file_name}')
                     print(f'File size: {os.path.getsize(convert_path_to_os)}B')
                     print(f'Absolute path: {os.path.abspath(convert_path_to_os)}')
-                    return file_content, file_name
+
+                # find the position where the binary data starts (after the file path)
+                path_length = len(file_path.encode())
+                binary_data_start = file_content.find(file_path.encode()) + path_length
+
+                if binary_data_start != -1:
+                    # extract binary data starting from the identified position
+                    binary_data = file_content[binary_data_start:]
+                    print(f"file_content:\n{binary_data}")
+                    return binary_data, file_name
             except FileNotFoundError:
                 print("Didn't find the file. Try again.")
             except Exception as e:
@@ -119,7 +131,7 @@ class Client:
                 else:
                     print("Invalid command!")
 
-    def send_message(self, client_socket, server_address, message_type, message, file_name: str = ""):
+    def send_message(self, client_socket: socket, server_address: tuple, message_type: str, message: bytes, file_name: str = ""):
         self.frag_order = 0
 
         if client_socket is not None:
@@ -127,9 +139,16 @@ class Client:
 
             if message_type == 'F':
                 path_to_save_file = self.get_path_to_save_file(file_name)
-                client_socket.sendto(
-                    self.initialize_message(FlagEnum.FILE.value, self.frag_order, path_to_save_file.encode('utf-8')),
-                    server_address)
+                print("Sending the file path to the server.")
+                client_socket.sendto(self.initialize_message(FlagEnum.FILE.value, self.frag_order, path_to_save_file.encode('utf-8')), server_address)
+                r_data = client_socket.recv(self.buff_size)
+                r_flag = self.menu.get_flag(r_data)
+
+                if self.is_ACK(r_flag):
+                    print("Acknowledgment received. Sending the file to the server.")
+                else:
+                    print("Error: Didn't receive ACK. Unable to complete the operation.")
+                    return
 
             dgrams_num = self.count_dgrams(message, fragment_size)
             bad_dgram = self.is_bad_datagram(dgrams_num)
@@ -145,14 +164,11 @@ class Client:
                         message = message[fragment_size:]
                         break
 
-                    if self.is_bad_datagram(bad_dgram):
-                        client_socket.sendto(
-                            self.initialize_message(FlagEnum.DATA.value, self.frag_order, split_message) + bytes(101),
-                            server_address)
+                    if bad_dgram != 0:
+                        client_socket.sendto(self.initialize_message(FlagEnum.DATA.value, self.frag_order, split_message) + bytes(101), server_address)
                     else:
-                        client_socket.sendto(
-                            self.initialize_message(FlagEnum.DATA.value, self.frag_order, split_message),
-                            server_address)
+                        client_socket.sendto(self.initialize_message(FlagEnum.DATA.value, self.frag_order, split_message), server_address)
+                        print(f"split_message: {split_message}")
 
                     print(f"Fragment order is {self.frag_order}.")
 
@@ -164,11 +180,13 @@ class Client:
                             r_flag = self.menu.get_flag(r_data)
                             r_frag_order = self.menu.get_frag_order(r_data)
 
-                            if self.is_not_valid_dgrams(r_flag, r_frag_order):
+                            if self.is_not_valid_dgrams(r_flag, r_frag_order) or self.is_NACK(r_flag):
+                                print("Damaged message or duplicated.")
                                 continue
 
-                            if self.all_dgrams_send(dgrams_num):
-                                print(f"{self.frag_order} fragments were send.")
+                            if self.is_all(dgrams_num):
+                                print(f"{self.frag_order} fragments were sent.")
+                                client_socket.sendto(self.initialize_message(FlagEnum.FIN.value, 0), server_address)
 
                             is_exit = True
                             break
@@ -178,19 +196,26 @@ class Client:
                         attempt_count += 1
 
                 if attempt_count == self.attempts:
-                    raise Exception("Maximum attempts reached. Unable to complete the operation.")
+                    print("Maximum attempts reached. Unable to complete the operation.")
+                    break
 
-
-    def all_attempts(self, attempt_count):
+    def all_attempts(self, attempt_count: int):
         return attempt_count < self.attempts
+
+    @staticmethod
+    def is_NACK(r_flag: int) -> bool:
+        return r_flag is FlagEnum.NACK.value
 
     def all_dgrams_send(self, dgrams_num: int) -> bool:
         return self.frag_order < dgrams_num
 
+    def is_all(self, dgrams_num: int) -> bool:
+        return self.frag_order == dgrams_num
+
     def is_not_valid_dgrams(self, r_flag: int, r_frag_order: int) -> bool:
         return r_flag != FlagEnum.ACK.value and r_frag_order != self.frag_order
 
-    def initialize_message(self, flag: int, frag_order: int, data: bytes = b''):
+    def initialize_message(self, flag: int, frag_order: int, data: bytes = b'') -> bytes:
         header = Header(flag, frag_order, self.crc.calculate(data))
         header_data = header.get_header_body()
 
@@ -200,6 +225,7 @@ class Client:
         return self.frag_order == bad_dgram_num
 
     def bad_datagram_input(self):
+        print("Do you want to send a bad fragment during conversation?")
         print('- [Y] yes')
         print('- [N] no')
         answer = self.menu.options()
@@ -214,12 +240,13 @@ class Client:
     def is_bad_datagram(self, dgrams_num: int) -> int:
         option = self.bad_datagram_input()
 
-        if option is 'Y':
+        if option == 'Y':
             return random.randint(1, dgrams_num)
         else:
             return 0
 
-    def count_dgrams(self, message, fragment_size: int) -> int:
+    @staticmethod
+    def count_dgrams(message: bytes, fragment_size: int) -> int:
         return int(math.ceil(float(len(message)) / float(fragment_size)))
 
     def get_fragment_size_input(self) -> int:
@@ -234,7 +261,8 @@ class Client:
             except ValueError:
                 print("Invalid input! Please enter a valid integer.")
 
-    def get_path_to_save_file(self, file_name: str) -> str:
+    @staticmethod
+    def get_path_to_save_file(file_name: str) -> str:
         while True:
             path = input("Enter the path of the file to send: ")
 
@@ -246,3 +274,7 @@ class Client:
     @staticmethod
     def get_text_message_from_input() -> bytes:
         return str(input("Enter text message: ")).encode('utf-8')
+
+    @staticmethod
+    def is_ACK(r_flag) -> bool:
+        return r_flag is FlagEnum.ACK.value
