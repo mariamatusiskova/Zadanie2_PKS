@@ -93,22 +93,36 @@ class Client:
             convert_path_to_os = os.path.normpath(file_path)
 
             try:
-                with open("/Users/maria/Desktop/ZS_2023_2024/PKS/Zadanie2/images.jpeg", 'rb') as file_object:
-                    file_content = file_object.read()
-                    file_name = os.path.basename(convert_path_to_os)
-                    print(f'File name: {file_name}')
-                    print(f'File size: {os.path.getsize(convert_path_to_os)}B')
-                    print(f'Absolute path: {os.path.abspath(convert_path_to_os)}')
+                CHUNK_SIZE = 4096
+                chunks_list = []
+                with open(convert_path_to_os, 'rb') as file_object:
+                    # # Skip the file path in the binary data
+                    # file_path_bytes = file_path.encode()
+                    # file_object.read(len(file_path_bytes))
 
-                # find the position where the binary data starts (after the file path)
-                path_length = len(file_path.encode())
-                binary_data_start = file_content.find(file_path.encode()) + path_length
+                    while True:
+                        chunk = file_object.read(CHUNK_SIZE)
+                        if not chunk:
+                            break
+                        chunks_list.append(chunk)
 
-                if binary_data_start != -1:
-                    # extract binary data starting from the identified position
-                    binary_data = file_content[binary_data_start:]
-                    print(f"file_content:\n{binary_data}")
-                    return binary_data, file_name
+                file_content = b''.join(chunks_list)
+                file_name = os.path.basename(convert_path_to_os)
+                print(f'File name: {file_name}')
+                print(f'File size: {os.path.getsize(convert_path_to_os)}B')
+                print(f'Absolute path: {os.path.abspath(convert_path_to_os)}')
+                print(f" len of file content: {len(file_content)}")
+
+                # # find the position where the binary data starts (after the file path)
+                # path_length = len(file_path.encode())
+                # binary_data_start = file_content.find(file_path.encode()) + path_length
+                #
+                # if binary_data_start != -1:
+                #     # extract binary data starting from the identified position
+                #     binary_data = file_content[binary_data_start:]
+                #     print(f"file_content:\n{binary_data}")
+
+                return file_content, file_name
             except FileNotFoundError:
                 print("Didn't find the file. Try again.")
             except Exception as e:
@@ -169,6 +183,7 @@ class Client:
                     else:
                         client_socket.sendto(self.initialize_message(FlagEnum.DATA.value, self.frag_order, split_message), server_address)
                         print(f"split_message: {split_message}")
+                        print(f"Sent fragment of {self.frag_order} - Size: {len(split_message)} bytes")
 
                     print(f"Fragment order is {self.frag_order}.")
 
@@ -247,6 +262,8 @@ class Client:
 
     @staticmethod
     def count_dgrams(message: bytes, fragment_size: int) -> int:
+        print(f"len of message: {len(message)}")
+        print(f"number of fragments: {int(math.ceil(float(len(message)) / float(fragment_size)))}")
         return int(math.ceil(float(len(message)) / float(fragment_size)))
 
     def get_fragment_size_input(self) -> int:

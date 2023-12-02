@@ -99,6 +99,7 @@ class Server:
                 if self.validator.is_crc_valid(r_data, r_crc, self.crc) and self.is_not_in_dict(r_frag_order, save_frag_message):
                     if self.is_DATA(r_flag):
                         print(f"received data: {r_data}")
+                        print(f"Received fragment of {r_frag_order} - Size: {len(r_data)} bytes")
                         save_frag_message[r_frag_order] = r_data
                         self.count_recv_dgram += 1
                     print(f"Received fragment of {r_frag_order}")
@@ -108,6 +109,9 @@ class Server:
                     server_socket.sendto(self.initialize_message(FlagEnum.NACK.value, r_frag_order), client_address)
 
             joined_data = b''.join([save_frag_message[frag_order] for frag_order in sorted(save_frag_message.keys())])
+
+            print(f"Total fragments received: {self.count_recv_dgram}")
+            print(f"Final joined data size: {len(joined_data)} bytes")
 
             # file message
             if is_path:
@@ -137,9 +141,11 @@ class Server:
 
             print(f"file_content:\n{joined_data}")
 
-            # Save the data to the file
+            CHUNK_SIZE = 4096
             with open(absolute_path, 'wb') as file:
-                file.write(joined_data)
+                for i in range(0, len(joined_data), CHUNK_SIZE):
+                    chunk = joined_data[i:i + CHUNK_SIZE]
+                    file.write(chunk)
 
             print(f"File saved to: {absolute_path}")
             print(f'File name: {file_name}')
