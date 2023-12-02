@@ -43,7 +43,7 @@ class Validator:
 
     @staticmethod
     def is_valid_fragment_size(fragment_size: int) -> bool:
-        if fragment_size < 6:
+        if fragment_size < 8:
             return False
         elif fragment_size > 1425:
             return False
