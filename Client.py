@@ -2,6 +2,8 @@ import math
 import os
 import random
 import socket
+import threading
+import time
 
 from CRC32 import CRC32
 from FlagEnum import FlagEnum
@@ -11,12 +13,69 @@ from Validator import Validator
 
 class Client:
     def __init__(self, menu):
+        self.timeout = 5
         self.buff_size = 1465
         self.frag_order = 0
         self.attempts = 3
+        self.thread_on = False
         self.menu = menu
         self.crc = CRC32()
         self.validator = Validator()
+        self.thread_ka = None
+
+
+    def keep_alive(self, client_socket: socket, server_details: tuple):
+        attempts_count = 0
+        start_time = time.time()
+
+        while self.thread_on:
+            client_socket.sendto(self.initialize_message(FlagEnum.KA.value, 0), server_details)
+            r_data = client_socket.recv(self.buff_size)
+            r_flag = self.menu.get_flag(r_data)
+
+            if self.is_ACK(r_flag):
+                print("Keep-alive: Acknowledgment received.")
+                # reset values
+                attempts_count = 0
+                start_time = time.time()
+            else:
+                print("Keep-alive: Error: Didn't receive ACK.")
+                attempts_count += 1
+                time.sleep(30)
+                if attempts_count >= self.attempts or time.time() - start_time >= 30:
+                    print("Failed to receive ACK after 3 attempts or timeout. Returning to the menu.")
+                    self.menu.client_menu()
+                    self.menu.quit_programme()
+
+            time.sleep(self.timeout)
+
+            while True:
+                if self.thread_on:
+                    client_socket.sendto(self.initialize_message(FlagEnum.KA.value, 0), server_details)
+                    r_data = client_socket.recv(self.buff_size)
+                    r_flag = self.menu.get_flag(r_data)
+
+                    if self.is_ACK(r_flag):
+                        print("Keep-alive: Acknowledgment received.")
+                        attempts = 0  # Reset attempts on successful acknowledgment
+                    else:
+                        print("Keep-alive: Error: Didn't receive ACK.")
+                        attempts += 1
+
+                        if attempts >= 3:
+                            print("Keep-alive: Maximum attempts reached. Waiting 30 seconds before quitting.")
+                            time.sleep(30)
+                            print("Keep-alive: Exiting program.")
+                            # Add any additional cleanup or exit logic here
+                            return
+
+                time.sleep(self.timeout)
+
+    def create_thread(self, client_socket: socket, server_details: tuple) -> threading:
+        self.thread_ka = threading.Thread(target=self.keep_alive, args=(client_socket, server_details))
+        self.thread_ka.daemon = True
+        self.thread_on = True
+        self.thread_ka.start()
 
     # menu for initializing connection
     def handle_client_input(self, client_input: str, server_ip: str = "", server_port: int = 0) -> (bool, str, int):
@@ -26,9 +85,13 @@ class Client:
                 return True, server_ip, server_port
             elif client_input == 'RRM':
                 print("Swapping roles.")
+                self.thread_on = False
+                self.thread_ka.join()
                 # swap
                 break
             elif client_input == 'Q':
+                self.thread_on = False
+                self.thread_ka.join()
                 self.menu.quit_programme()
             else:
                 print(
@@ -53,6 +116,7 @@ class Client:
 
             # sending initial_header to server
             client_socket.sendto(self.initialize_message(FlagEnum.SYN.value, self.frag_order), server_details)
+            self.create_thread(client_socket, server_details)
 
             # receiving response from the server
             received_flag, server_address = client_socket.recvfrom(self.buff_size)
@@ -96,9 +160,6 @@ class Client:
                 CHUNK_SIZE = 4096
                 chunks_list = []
                 with open(convert_path_to_os, 'rb') as file_object:
-                    # # Skip the file path in the binary data
-                    # file_path_bytes = file_path.encode()
-                    # file_object.read(len(file_path_bytes))
 
                     while True:
                         chunk = file_object.read(CHUNK_SIZE)
@@ -111,16 +172,15 @@ class Client:
                 print(f'File name: {file_name}')
                 print(f'File size: {os.path.getsize(convert_path_to_os)}B')
                 print(f'Absolute path: {os.path.abspath(convert_path_to_os)}')
-                print(f" len of file content: {len(file_content)}")
+                print(f"len of file content: {len(file_content)}")
 
-                # # find the position where the binary data starts (after the file path)
-                # path_length = len(file_path.encode())
-                # binary_data_start = file_content.find(file_path.encode()) + path_length
-                #
-                # if binary_data_start != -1:
-                #     # extract binary data starting from the identified position
-                #     binary_data = file_content[binary_data_start:]
-                #     print(f"file_content:\n{binary_data}")
+                jpeg_start = file_content.find(b'\xff\xd8\xff')
+                if jpeg_start != -1:
+                    path_length = len(file_path.encode())
+                    binary_data_start = file_content.find(file_path.encode()) + path_length
+
+                    if binary_data_start != -1:
+                        file_content = file_content[binary_data_start:]
 
                 return file_content, file_name
             except FileNotFoundError:
@@ -182,10 +242,8 @@ class Client:
                         client_socket.sendto(self.initialize_message(FlagEnum.DATA.value, self.frag_order, split_message) + bytes(101), server_address)
                     else:
                         client_socket.sendto(self.initialize_message(FlagEnum.DATA.value, self.frag_order, split_message), server_address)
-                        print(f"split_message: {split_message}")
-                        print(f"Sent fragment of {self.frag_order} - Size: {len(split_message)} bytes")
 
-                    print(f"Fragment order is {self.frag_order}.")
+                    print(f"Sent fragment of {self.frag_order} - Size: {len(split_message)} bytes")
 
                     try:
                         while True:

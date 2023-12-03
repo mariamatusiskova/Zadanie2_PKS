@@ -57,6 +57,10 @@ class Server:
 
             # processing received data
             r_flag = self.menu.get_flag(received_flag)
+            r_frag_order = self.menu.get_frag_order(received_flag)
+
+            self.check_thread(r_flag, server_socket, r_frag_order, client_address)
+
             if self.is_SYN(r_flag):
                 print(f"Connection initialized. Client details: {client_address}")
                 if server_socket is not None:
@@ -93,16 +97,15 @@ class Server:
                 if self.is_FILE(r_flag):
                     convert_path_to_os = os.path.normpath(r_data.decode('utf-8'))
                     is_path = True
-                    print(f"path: {r_data}")
                     print(f"after convert: {convert_path_to_os}")
+
+                self.check_thread(r_flag, server_socket, r_frag_order, client_address)
 
                 if self.validator.is_crc_valid(r_data, r_crc, self.crc) and self.is_not_in_dict(r_frag_order, save_frag_message):
                     if self.is_DATA(r_flag):
-                        print(f"received data: {r_data}")
                         print(f"Received fragment of {r_frag_order} - Size: {len(r_data)} bytes")
                         save_frag_message[r_frag_order] = r_data
                         self.count_recv_dgram += 1
-                    print(f"Received fragment of {r_frag_order}")
                     server_socket.sendto(self.initialize_message(FlagEnum.ACK.value, r_frag_order), client_address)
                 else:
                     print("Data received, but they are damaged or duplicated.")
@@ -153,6 +156,11 @@ class Server:
         except Exception as e:
             print(f"Error saving file: {e}")
 
+    def check_thread(self, r_flag: int, server_socket: socket, r_frag_order: int, client_address: tuple):
+        if self.is_KA(r_flag):
+            print("Keep-alive received.")
+            server_socket.sendto(self.initialize_message(FlagEnum.ACK.value, r_frag_order), client_address)
+
     @staticmethod
     def is_not_in_dict(r_frag_order: int, save_frag_message: dict) -> bool:
         return r_frag_order not in save_frag_message
@@ -168,6 +176,10 @@ class Server:
     @staticmethod
     def is_FILE(r_flag) -> bool:
         return r_flag is FlagEnum.FILE.value
+
+    @staticmethod
+    def is_KA(r_flag) -> bool:
+        return r_flag is FlagEnum.KA.value
 
     @staticmethod
     def is_DATA(r_flag) -> bool:
