@@ -277,7 +277,7 @@ class Client:
                     break
                 else:
                     print(f"{cp.RED}Invalid command!{cp.RESET}")
-
+#
     def send_message(self, client_socket: socket, message_type: str, message: bytes, file_name: str = ""):
         self.frag_order = 0
 
