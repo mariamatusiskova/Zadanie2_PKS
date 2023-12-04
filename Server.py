@@ -85,8 +85,9 @@ class Server:
             print(f"{cp.PINK}keep_alive_server:{cp.RESET} im in the loop, thread is on")
 
             try:
-                r_header, self.client_address = server_socket.recvfrom(self.buff_size)
-                self.receive_queue.put(r_header)
+                with self.lock_socket:
+                    r_header, self.client_address = server_socket.recvfrom(self.buff_size)
+                    self.receive_queue.put(r_header)
 
                 r_header = self.receive_queue_manager(True, FlagEnum.KA.value)
 
@@ -172,8 +173,9 @@ class Server:
                 self.create_thread(server_socket)
 
             # receiving response from the client
-            r_header = server_socket.recv(self.buff_size)
-            self.receive_queue.put(r_header)
+            with self.lock_socket:
+                r_header = server_socket.recv(self.buff_size)
+                self.receive_queue.put(r_header)
 
             r_data = self.receive_queue_manager(False, FlagEnum.INF.value)
             print(f"data: {r_data}")
@@ -294,9 +296,9 @@ class Server:
 
         if server_socket is not None:
             while True:
-
-                r_header = server_socket.recv(self.buff_size)
-                self.receive_queue.put(r_header)
+                with self.lock_socket:
+                    r_header = server_socket.recv(self.buff_size)
+                    self.receive_queue.put(r_header)
 
                 r_header = self.receive_queue_manager(False)
                 r_flag, r_frag_order, r_crc, r_data = self.menu.initialize_recv_header(r_header)

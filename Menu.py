@@ -169,6 +169,6 @@ class Menu:
                     is_address, server_port = server.handle_server_input(server_input, server_socket)
         except Exception as e:
             print(f"{cp.YELLOW}Menu server: An error occurred: {e}. Try again.{cp.RESET}")
-        finally:
-            if server_socket:
-                server_socket.close()
+        # finally:
+        #     if server_socket:
+        #         server_socket.close()
