@@ -41,8 +41,7 @@ class Server:
                 # reset values
                 attempts_count = 0
                 start_time = time.time()
-
-                self.check_thread(r_flag, server_socket, r_frag_order)
+                server_socket.sendto(self.initialize_message(FlagEnum.ACK_KA.value, r_frag_order), self.client_address)
             else:
                 server_socket.sendto(self.initialize_message(r_flag, r_frag_order, r_data, r_crc), server_address)
                 print("server keep-alive server: Error: Didn't receive KA.")
@@ -219,17 +218,6 @@ class Server:
             print(f'File size: {os.path.getsize(absolute_path)}B')
         except Exception as e:
             print(f"Error saving file: {e}")
-
-    def check_thread(self, r_flag: int, server_socket: socket, r_frag_order: int):
-        if self.is_KA(r_flag):
-            print("Keep-alive server received.")
-            print(f"check_thread: {self.client_address}")
-
-            # Check if the socket is still open
-            if server_socket.fileno() != -1:
-                server_socket.sendto(self.initialize_message(FlagEnum.ACK_KA.value, r_frag_order), self.client_address)
-            else:
-                print("Error: Server socket is closed.")
 
     @staticmethod
     def is_not_in_dict(r_frag_order: int, save_frag_message: dict) -> bool:

@@ -34,6 +34,7 @@ class Client:
             print("keep_alive: im in the loop, thread is on")
             print(f"keep_alive: server address: {self.server_address}")
             client_socket.sendto(self.initialize_message(FlagEnum.KA.value, 0), self.server_address)
+            print("- Sending KA")
             r_header = client_socket.recv(self.buff_size)
             r_flag, r_frag_order, r_crc, r_data = self.menu.initialize_recv_header(r_header)
             print(f"keep_alive: client flag: {r_flag} (((((((((((((((((((((((((((((((((((((((((((")
