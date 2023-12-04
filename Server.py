@@ -20,42 +20,47 @@ class Server:
         self.menu = menu
         self.crc = CRC32()
         self.validator = Validator()
-        self.wait_timeout = 15
+        self.wait_timeout = 30
         self.thread_ka = None
         self.thread_on = False
         self.attempts = 3
         self.timeout = 5
+        self.server_address = ()
+        self.client_address = ()
 
-    def keep_KA_sending(self, server_socket: socket, client_address: tuple):
+    def keep_KA_sending(self, server_socket: socket, server_address: tuple):
         attempts_count = 0
         start_time = time.time()
 
-        try:
-            while self.thread_on:
-                r_header = server_socket.recv(self.buff_size)
-                r_flag, r_frag_order, r_crc, r_data = self.initialize_recv_header(r_header)
+        while self.thread_on:
+            print("keep_KA_sending: im in the loop, thread is on")
+            r_header, self.client_address = server_socket.recvfrom(self.buff_size)
+            r_flag, r_frag_order, r_crc, r_data = self.initialize_recv_header(r_header)
+            print(f"keep_KA_sending: server KA: {r_flag} (((((((((((((((((((((((((((((((((((((((((((")
+            if self.is_KA(r_flag):
+                # reset values
+                attempts_count = 0
+                start_time = time.time()
 
-                if self.is_KA(r_flag):
-                    self.check_thread(r_flag, server_socket, r_frag_order, client_address)
-                else:
-                    print("server keep-alive server: Error: Didn't receive KA.")
-                    attempts_count += 1
-                    time.sleep(self.wait_timeout)
+                self.check_thread(r_flag, server_socket, r_frag_order)
+            else:
+                server_socket.sendto(self.initialize_message(r_flag, r_frag_order, r_data, r_crc), server_address)
+                print("server keep-alive server: Error: Didn't receive KA.")
+                attempts_count += 1
+                time.sleep(self.wait_timeout)
 
-                    if attempts_count >= self.attempts or time.time() - start_time >= self.wait_timeout:
-                        print("Failed to receive KA after 3 attempts or timeout. Returning to the menu.")
-                        # Close the socket only if it's still open
-                        if server_socket.fileno() != -1:
-                            server_socket.close()
-                        self.menu.menu()
-                        self.menu.quit_programme()
+                if attempts_count >= self.attempts or time.time() - start_time >= self.wait_timeout:
+                    print("Failed to receive KA after 3 attempts or timeout. Returning to the menu.")
+                    # Close the socket only if it's still open
+                    if server_socket.fileno() != -1:
+                        server_socket.close()
+                    self.menu.menu()
+                    break
 
-                time.sleep(self.timeout)
-        finally:
-            server_socket.close()
+            time.sleep(self.timeout)
 
-    def create_thread(self, server_socket: socket, client_address: tuple) -> threading:
-        self.thread_ka = threading.Thread(target=self.keep_KA_sending, args=(server_socket, client_address))
+    def create_thread(self, server_socket: socket):
+        self.thread_ka = threading.Thread(target=self.keep_KA_sending, args=(server_socket, self.server_address))
         self.thread_ka.daemon = True
         self.thread_on = True
         self.thread_ka.start()
@@ -95,21 +100,26 @@ class Server:
                 # server_port = self.menu.get_port_input("receiver")
             server_details = (SERVER_HOST_IP, server_port)
             server_socket.bind(server_details)
+            self.server_address = server_details
+
+            if not self.thread_ka:
+                print("initialize_server_connection: Im in if not self.thread_ka:")
+                self.create_thread(server_socket)
 
             # receiving response from the client
-            received_flag, client_address = server_socket.recvfrom(self.buff_size)
+            r_data = self.send_KA_back(server_socket)
+            print(f"data: {r_data}")
+
             # sending initial_header to client
-            server_socket.sendto(self.initialize_message(FlagEnum.ACK.value, 0), client_address)
-            if not self.thread_ka:
-                self.create_thread(server_socket, server_details)
+            server_socket.sendto(self.initialize_message(FlagEnum.ACK.value, 0), self.client_address)
 
             # processing received data
-            r_flag = self.menu.get_flag(received_flag)
+            r_flag = self.menu.get_flag(r_data)
 
             if self.is_INF(r_flag):
-                print(f"Connection initialized. Client details: {client_address}")
+                print(f"Connection initialized. Client details: {self.client_address}")
                 if server_socket is not None:
-                    self.server_sender(server_socket, client_address)
+                    self.server_sender(server_socket)
                     print(f"server socket: {server_socket} ########################################")
                     return server_port
             else:
@@ -119,13 +129,16 @@ class Server:
                 server_socket.close()
             print(f"initialize_server_connection: An error occurred: {e}. Try again.")
 
-    def initialize_message(self, flag: int, frag_order: int, data: bytes = b'') -> bytes:
-        header = Header(flag, frag_order, self.crc.calculate(data))
+    def initialize_message(self, flag: int, frag_order: int, data: bytes = b'', crc: int = 0) -> bytes:
+        if not crc:
+            crc = self.crc.calculate(data)
+
+        header = Header(flag, frag_order, crc)
         header_data = header.get_header_body()
 
         return header_data + data
 
-    def server_sender(self, server_socket: socket, client_address: tuple):
+    def server_sender(self, server_socket: socket):
         self.count_recv_dgram = 0
         save_frag_message = {}
         is_path = False
@@ -133,13 +146,13 @@ class Server:
 
         if server_socket is not None:
             while True:
-                r_header = server_socket.recv(self.buff_size)
+                r_header = self.send_KA_back(server_socket)
                 r_flag, r_frag_order, r_crc, r_data = self.initialize_recv_header(r_header)
 
                 if self.is_FIN(r_flag):
                     print("FIN, end of connection.")
                     print(f" - {self.count_recv_dgram} fragments were received.")
-                    server_socket.sendto(self.initialize_message(FlagEnum.ACK.value, r_frag_order), client_address)
+                    server_socket.sendto(self.initialize_message(FlagEnum.ACK.value, r_frag_order), self.client_address)
                     break
 
                 if self.is_END(r_flag):
@@ -156,13 +169,13 @@ class Server:
                         print(f"Received fragment of {r_frag_order} - Size: {len(r_data)} bytes")
                         save_frag_message[r_frag_order] = r_data
                         self.count_recv_dgram += 1
-                    server_socket.sendto(self.initialize_message(FlagEnum.ACK.value, r_frag_order), client_address)
+                    server_socket.sendto(self.initialize_message(FlagEnum.ACK.value, r_frag_order), self.client_address)
                 elif self.validator.is_crc_valid(r_data, r_crc, self.crc):
                     print(f"Data received, but they are duplicated, fragment {r_frag_order}.")
                 else:
                     print(f"Fragment {r_frag_order} is damaged. --> NACK")
                     print(f" - Received fragment of {r_frag_order} - Size: {len(r_data)} bytes")
-                    server_socket.sendto(self.initialize_message(FlagEnum.NACK.value, r_frag_order), client_address)
+                    server_socket.sendto(self.initialize_message(FlagEnum.NACK.value, r_frag_order), self.client_address)
 
             joined_data = b''.join([save_frag_message[frag_order] for frag_order in sorted(save_frag_message.keys())])
 
@@ -209,10 +222,16 @@ class Server:
         except Exception as e:
             print(f"Error saving file: {e}")
 
-    def check_thread(self, r_flag: int, server_socket: socket, r_frag_order: int, client_address: tuple):
+    def check_thread(self, r_flag: int, server_socket: socket, r_frag_order: int):
         if self.is_KA(r_flag):
-            print("Keep-alive received.")
-            server_socket.sendto(self.initialize_message(FlagEnum.ACK.value, r_frag_order), client_address)
+            print("Keep-alive server received.")
+            print(f"check_thread: {self.client_address}")
+
+            # Check if the socket is still open
+            if server_socket.fileno() != -1:
+                server_socket.sendto(self.initialize_message(FlagEnum.ACK_KA.value, r_frag_order), self.client_address)
+            else:
+                print("Error: Server socket is closed.")
 
     @staticmethod
     def is_not_in_dict(r_frag_order: int, save_frag_message: dict) -> bool:
@@ -241,6 +260,18 @@ class Server:
     @staticmethod
     def is_DATA(r_flag) -> bool:
         return r_flag is FlagEnum.DATA.value
+
+    def send_KA_back(self, server_socket: socket):
+        #while True:
+        r_data = server_socket.recv(self.buff_size)
+        r_flag = self.menu.get_flag(r_data)
+        print(f"send_ACK_KA_back: before condition {r_flag}")
+
+        if self.is_KA(r_flag):
+            print(f"send_KA_back: I'm in the condition if self.is_KA {r_flag}")
+            server_socket.sendto(self.initialize_message(FlagEnum.KA.value, 0), self.server_address)
+        else:
+            return r_data
 
     def initialize_recv_header(self, r_header: bytes) -> (int, int, int, bytes):
         return self.menu.get_flag(r_header), self.menu.get_frag_order(r_header), self.menu.get_crc(r_header), self.menu.get_data(r_header)

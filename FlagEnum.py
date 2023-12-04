@@ -4,10 +4,11 @@ from enum import Enum
 class FlagEnum(Enum):
     INF = 1
     ACK = 2
-    NACK = 3
-    FILE = 4
-    DATA = 5
-    KA = 6
-    RRM = 7
-    FIN = 8
-    END = 9
+    ACK_KA = 3
+    NACK = 4
+    FILE = 5
+    DATA = 6
+    KA = 7
+    RRM = 8
+    FIN = 9
+    END = 10

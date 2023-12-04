@@ -22,42 +22,48 @@ class Client:
         self.crc = CRC32()
         self.validator = Validator()
         self.thread_ka = None
-        self.wait_timeout = 15
+        self.wait_timeout = 30
+        self.server_address = ()
+        self.client_address = ()
 
-    def keep_alive(self, client_socket: socket, server_details: tuple):
+    def keep_alive(self, client_socket: socket, client_address: tuple):
         attempts_count = 0
         start_time = time.time()
 
-        try:
-            while self.thread_on:
-                client_socket.sendto(self.initialize_message(FlagEnum.KA.value, 0), server_details)
-                r_data = client_socket.recv(self.buff_size)
-                r_flag = self.menu.get_flag(r_data)
+        while self.thread_on:
+            print("keep_alive: im in the loop, thread is on")
+            print(f"keep_alive: server address: {self.server_address}")
+            client_socket.sendto(self.initialize_message(FlagEnum.KA.value, 0), self.server_address)
+            r_data = client_socket.recv(self.buff_size)
+            r_flag = self.menu.get_flag(r_data)
+            print(f"keep_alive: client flag: {r_flag} (((((((((((((((((((((((((((((((((((((((((((")
+            r_frag_order = self.menu.get_frag_order(r_data)
+            r_crc = self.menu.get_crc(r_data)
+            r_data_d = self.menu.get_data(r_data)
 
-                if self.is_ACK(r_flag):
-                    print("Keep-alive client: Acknowledgment received.")
-                    # reset values
-                    attempts_count = 0
-                    start_time = time.time()
-                else:
-                    print("Client keep-alive: Error: Didn't receive ACK.")
-                    attempts_count += 1
-                    time.sleep(self.wait_timeout)
+            if self.is_ACK_KA(r_flag):
+                print("Keep-alive client: ACK_KA received.")
+                # reset values
+                attempts_count = 0
+                start_time = time.time()
+            else:
+                client_socket.sendto(self.initialize_message(r_flag, r_frag_order, r_data_d, r_crc), client_address)
+                print("keep_alive: Error: Didn't receive ACK_KA.")
+                attempts_count += 1
+                time.sleep(self.wait_timeout)
 
-                    if attempts_count >= self.attempts or time.time() - start_time >= self.wait_timeout:
-                        print("Failed to receive ACK after 3 attempts or timeout. Returning to the menu.")
-                        # Close the socket only if it's still open
-                        if client_socket.fileno() != -1:
-                            client_socket.close()
-                        self.menu.menu()
-                        self.menu.quit_programme()
+                if attempts_count >= self.attempts or time.time() - start_time >= self.wait_timeout:
+                    print("Failed to receive ACK_KA after 3 attempts or timeout. Returning to the menu.")
+                    # Close the socket only if it's still open
+                    if client_socket.fileno() != -1:
+                        client_socket.close()
+                    self.menu.menu()
+                    break
 
-                time.sleep(self.timeout)
-        finally:
-            client_socket.close()
+            time.sleep(self.timeout)
 
-    def create_thread(self, client_socket: socket, server_details: tuple) -> threading:
-        self.thread_ka = threading.Thread(target=self.keep_alive, args=(client_socket, server_details))
+    def create_thread(self, client_socket: socket):
+        self.thread_ka = threading.Thread(target=self.keep_alive, args=(client_socket, self.client_address))
         self.thread_ka.daemon = True
         self.thread_on = True
         self.thread_ka.start()
@@ -90,7 +96,7 @@ class Client:
         self.frag_order = 0
 
         # uncomment for testing purpose
-        server_ip, server_port = "localhost", 50000
+        server_ip, server_port = socket.gethostbyname(socket.gethostname()), 50000
 
         try:
             # getting details about server
@@ -99,22 +105,30 @@ class Client:
             #else:
                 # server_ip, server_port = self.menu.get_ip_input("server/receiver"), self.menu.get_port_input("server/receiver")
 
-            server_details = (server_ip, server_port)
+            self.server_address = (server_ip, server_port)
+            client_socket.bind(('0.0.0.0', 0))
+            own_ip, own_port = client_socket.getsockname()
+            print(f"own ip: {own_ip} own port: {own_port}")
+
+            self.client_address = (own_ip, own_port)
+
+            if not self.thread_ka:
+                print("initialize_client_connection: Im in if not self.thread_ka:")
+                self.create_thread(client_socket)
 
             # sending initial_header to server
-            client_socket.sendto(self.initialize_message(FlagEnum.INF.value, self.frag_order), server_details)
-            if not self.thread_ka:
-                self.create_thread(client_socket, server_details)
+            client_socket.sendto(self.initialize_message(FlagEnum.INF.value, self.frag_order), self.server_address)
 
             # receiving response from the server
-            received_flag, server_address = client_socket.recvfrom(self.buff_size)
+            r_data = self.send_ACK_KA_back(client_socket)
 
             # processing received data
-            r_flag = self.menu.get_flag(received_flag)
+            r_flag = self.menu.get_flag(r_data)
+            print(f"initialize_client_connection: received server flag: {r_flag} (((((((((((((((((((((((((((((((((((((((((((")
             if self.is_ACK(r_flag):
-                print(f"Connection initialized. Server details: {server_address}")
+                print(f"Connection initialized. Server details: {self.server_address}")
                 if client_socket is not None:
-                    self.client_sender(client_socket, server_address)
+                    self.client_sender(client_socket)
                     print(f"server socket: {client_socket} ########################################")
                     return server_ip, server_port
             else:
@@ -179,7 +193,7 @@ class Client:
             except Exception as e:
                 print(f"An error occurred: {e}. Try again.")
 
-    def client_sender(self, client_socket: socket, server_address: tuple):
+    def client_sender(self, client_socket: socket):
 
         if client_socket is not None:
             while True:
@@ -187,16 +201,16 @@ class Client:
 
                 if message_type == 'T':
                     text_message = self.get_text_message_from_input()
-                    self.send_message(client_socket, server_address, message_type, text_message)
+                    self.send_message(client_socket, message_type, text_message)
                     break
                 elif message_type == 'F':
                     file_message, file_name = self.get_file_message_from_input()
-                    self.send_message(client_socket, server_address, message_type, file_message, file_name)
+                    self.send_message(client_socket, message_type, file_message, file_name)
                     break
                 else:
                     print("Invalid command!")
 
-    def send_message(self, client_socket: socket, server_address: tuple, message_type: str, message: bytes, file_name: str = ""):
+    def send_message(self, client_socket: socket, message_type: str, message: bytes, file_name: str = ""):
         self.frag_order = 0
 
         if client_socket is not None:
@@ -205,8 +219,8 @@ class Client:
             if message_type == 'F':
                 path_to_save_file = self.get_path_to_save_file(file_name)
                 print("Sending the file path to the server.")
-                client_socket.sendto(self.initialize_message(FlagEnum.FILE.value, self.frag_order, path_to_save_file.encode('utf-8')), server_address)
-                r_data = client_socket.recv(self.buff_size)
+                client_socket.sendto(self.initialize_message(FlagEnum.FILE.value, self.frag_order, path_to_save_file.encode('utf-8')), self.server_address)
+                r_data = self.send_ACK_KA_back(client_socket)
                 r_flag = self.menu.get_flag(r_data)
 
                 if self.is_ACK(r_flag):
@@ -230,9 +244,9 @@ class Client:
                         break
 
                     if self.is_bad_dgram(bad_dgram):
-                        client_socket.sendto(self.initialize_message(FlagEnum.DATA.value, self.frag_order, split_message) + bytes(101), server_address)
+                        client_socket.sendto(self.initialize_message(FlagEnum.DATA.value, self.frag_order, split_message) + bytes(101), self.server_address)
                     else:
-                        client_socket.sendto(self.initialize_message(FlagEnum.DATA.value, self.frag_order, split_message), server_address)
+                        client_socket.sendto(self.initialize_message(FlagEnum.DATA.value, self.frag_order, split_message), self.server_address)
 
                     print(f" - Sent fragment of {self.frag_order} - Size: {len(split_message)} bytes")
 
@@ -240,7 +254,7 @@ class Client:
                         while True:
                             client_socket.settimeout(self.wait_timeout)
 
-                            r_data = client_socket.recv(self.buff_size)
+                            r_data = self.send_ACK_KA_back(client_socket)
                             r_flag = self.menu.get_flag(r_data)
                             r_frag_order = self.menu.get_frag_order(r_data)
 
@@ -256,7 +270,7 @@ class Client:
 
                             if self.is_all(dgrams_num):
                                 print(f"{self.frag_order} fragments were sent.")
-                                client_socket.sendto(self.initialize_message(FlagEnum.FIN.value, 0), server_address)
+                                client_socket.sendto(self.initialize_message(FlagEnum.FIN.value, 0), self.server_address)
 
                             attempt_count = 0
                             is_exit = True
@@ -269,7 +283,7 @@ class Client:
                 if attempt_count == self.attempts:
                     print("Maximum attempts reached. Unable to complete the operation.")
                     print(f"Last sent fragment was {self.frag_order} - Size: {len(split_message)} bytes")
-                    client_socket.sendto(self.initialize_message(FlagEnum.END.value, 0), server_address)
+                    client_socket.sendto(self.initialize_message(FlagEnum.END.value, 0), self.server_address)
                     break
 
     def all_attempts(self, attempt_count: int):
@@ -290,8 +304,10 @@ class Client:
     def is_not_valid_dgrams(self, r_frag_order: int) -> bool:
         return r_frag_order != self.frag_order
 
-    def initialize_message(self, flag: int, frag_order: int, data: bytes = b'') -> bytes:
-        header = Header(flag, frag_order, self.crc.calculate(data))
+    def initialize_message(self, flag: int, frag_order: int, data: bytes = b'', crc: int = 0) -> bytes:
+        if not crc:
+            crc = self.crc.calculate(data)
+        header = Header(flag, frag_order, crc)
         header_data = header.get_header_body()
 
         return header_data + data
@@ -355,3 +371,19 @@ class Client:
     @staticmethod
     def is_ACK(r_flag) -> bool:
         return r_flag is FlagEnum.ACK.value
+
+    @staticmethod
+    def is_ACK_KA(r_flag) -> bool:
+        return r_flag is FlagEnum.ACK_KA.value
+
+    def send_ACK_KA_back(self, server_socket: socket):
+        #while True:
+        r_data = server_socket.recv(self.buff_size)
+        r_flag = self.menu.get_flag(r_data)
+        print(f"send_ACK_KA_back: before condition {r_flag}")
+
+        if self.is_ACK_KA(r_flag):
+            print(f"send_ACK_KA_back: I'm in the condition if self.is_KA {r_flag}")
+            server_socket.sendto(self.initialize_message(FlagEnum.ACK_KA.value, 0), self.client_address)
+        else:
+            return r_data
