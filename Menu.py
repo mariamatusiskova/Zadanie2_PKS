@@ -1,4 +1,5 @@
 import sys
+import socket
 
 from Client import Client
 from Server import Server
@@ -8,6 +9,7 @@ from Validator import Validator
 class Menu:
     def __init__(self):
         self.validator = Validator()
+
 
     # check input of client, server or quit
     def handle_user_input(self, user_input: str):
@@ -80,39 +82,57 @@ class Menu:
         is_address = False
         server_ip = ""
         server_port = 0
+        client_socket = None
 
-        while True:
-            if is_address:
-                print("- [S] continue as Client")
-            else:
-                print('- [S] set the IP address and port of the receiver')
-            print('- [RRM] switch role to server')
-            print('- [Q] quit')
-            client_input = self.options()
-            client_input = client_input.upper()
-            print(f'Picked client_input: {client_input}')
-            client = Client(self)
-            if is_address:
-                is_address, server_ip, server_port = client.handle_client_input(client_input, server_ip, server_port)
-            else:
-                is_address, server_ip, server_port = client.handle_client_input(client_input)
+        try:
+            while True:
+                client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+                if is_address:
+                    print("- [S] continue as Client")
+                else:
+                    print('- [S] set the IP address and port of the receiver')
+                print('- [RRM] switch role to server')
+                print('- [Q] quit')
+                client_input = self.options()
+                client_input = client_input.upper()
+                print(f'Picked client_input: {client_input}')
+                client = Client(self)
+                if is_address:
+                    is_address, server_ip, server_port = client.handle_client_input(client_input, client_socket, server_ip, server_port)
+                else:
+                    is_address, server_ip, server_port = client.handle_client_input(client_input, client_socket)
+        except Exception as e:
+            print(f"Menu client: An error occurred: {e}. Try again.")
+        finally:
+            if client_socket:
+                client_socket.close()
 
     def server_menu(self):
         is_address = False
         server_port = 0
+        server_socket = None
 
-        while True:
-            if is_address:
-                print("- [S] continue as Server")
-            else:
-                print('- [S] set port of the server')
-            print('- [RRM] switch role to client')
-            print('- [Q] quit')
-            server_input = self.options()
-            server_input = server_input.upper()
-            print(f'Picked server_input: {server_input}')
-            server = Server(self)
-            if is_address:
-                is_address, server_port = server.handle_server_input(server_input, server_port)
-            else:
-                is_address, server_port = server.handle_server_input(server_input)
+        try:
+            while True:
+                server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+
+                if is_address:
+                    print("- [S] continue as Server")
+                else:
+                    print('- [S] set port of the server')
+                print('- [RRM] switch role to client')
+                print('- [Q] quit')
+                server_input = self.options()
+                server_input = server_input.upper()
+                print(f'Picked server_input: {server_input}')
+                server = Server(self)
+                if is_address:
+                    is_address, server_port = server.handle_server_input(server_input, server_socket, server_port)
+                else:
+                    is_address, server_port = server.handle_server_input(server_input, server_socket)
+        except Exception as e:
+            print(f"Menu server: An error occurred: {e}. Try again.")
+        finally:
+            if server_socket:
+                server_socket.close()

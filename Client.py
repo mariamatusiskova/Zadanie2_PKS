@@ -22,54 +22,39 @@ class Client:
         self.crc = CRC32()
         self.validator = Validator()
         self.thread_ka = None
-
+        self.wait_timeout = 15
 
     def keep_alive(self, client_socket: socket, server_details: tuple):
         attempts_count = 0
         start_time = time.time()
 
-        while self.thread_on:
-            client_socket.sendto(self.initialize_message(FlagEnum.KA.value, 0), server_details)
-            r_data = client_socket.recv(self.buff_size)
-            r_flag = self.menu.get_flag(r_data)
+        try:
+            while self.thread_on:
+                client_socket.sendto(self.initialize_message(FlagEnum.KA.value, 0), server_details)
+                r_data = client_socket.recv(self.buff_size)
+                r_flag = self.menu.get_flag(r_data)
 
-            if self.is_ACK(r_flag):
-                print("Keep-alive: Acknowledgment received.")
-                # reset values
-                attempts_count = 0
-                start_time = time.time()
-            else:
-                print("Keep-alive: Error: Didn't receive ACK.")
-                attempts_count += 1
-                time.sleep(30)
-                if attempts_count >= self.attempts or time.time() - start_time >= 30:
-                    print("Failed to receive ACK after 3 attempts or timeout. Returning to the menu.")
-                    self.menu.client_menu()
-                    self.menu.quit_programme()
+                if self.is_ACK(r_flag):
+                    print("Keep-alive client: Acknowledgment received.")
+                    # reset values
+                    attempts_count = 0
+                    start_time = time.time()
+                else:
+                    print("Client keep-alive: Error: Didn't receive ACK.")
+                    attempts_count += 1
+                    time.sleep(self.wait_timeout)
 
-            time.sleep(self.timeout)
-
-            while True:
-                if self.thread_on:
-                    client_socket.sendto(self.initialize_message(FlagEnum.KA.value, 0), server_details)
-                    r_data = client_socket.recv(self.buff_size)
-                    r_flag = self.menu.get_flag(r_data)
-
-                    if self.is_ACK(r_flag):
-                        print("Keep-alive: Acknowledgment received.")
-                        attempts = 0  # Reset attempts on successful acknowledgment
-                    else:
-                        print("Keep-alive: Error: Didn't receive ACK.")
-                        attempts += 1
-
-                        if attempts >= 3:
-                            print("Keep-alive: Maximum attempts reached. Waiting 30 seconds before quitting.")
-                            time.sleep(30)
-                            print("Keep-alive: Exiting program.")
-                            # Add any additional cleanup or exit logic here
-                            return
+                    if attempts_count >= self.attempts or time.time() - start_time >= self.wait_timeout:
+                        print("Failed to receive ACK after 3 attempts or timeout. Returning to the menu.")
+                        # Close the socket only if it's still open
+                        if client_socket.fileno() != -1:
+                            client_socket.close()
+                        self.menu.menu()
+                        self.menu.quit_programme()
 
                 time.sleep(self.timeout)
+        finally:
+            client_socket.close()
 
     def create_thread(self, client_socket: socket, server_details: tuple) -> threading:
         self.thread_ka = threading.Thread(target=self.keep_alive, args=(client_socket, server_details))
@@ -78,29 +63,31 @@ class Client:
         self.thread_ka.start()
 
     # menu for initializing connection
-    def handle_client_input(self, client_input: str, server_ip: str = "", server_port: int = 0) -> (bool, str, int):
+    def handle_client_input(self, client_input: str, client_socket: socket, server_ip: str = "", server_port: int = 0) -> (bool, str, int):
         while True:
             if client_input == 'S':
-                server_ip, server_port = self.initialize_client_connection(server_ip, server_port)
+                server_ip, server_port = self.initialize_client_connection(client_socket, server_ip, server_port)
+                print(f"server socket: {client_socket} ########################################")
                 return True, server_ip, server_port
             elif client_input == 'RRM':
                 print("Swapping roles.")
                 self.thread_on = False
                 self.thread_ka.join()
+                client_socket.close()
                 # swap
                 break
             elif client_input == 'Q':
                 self.thread_on = False
                 self.thread_ka.join()
+                client_socket.close()
                 self.menu.quit_programme()
             else:
                 print(
                     "Invalid input. Use 'S' as a settings of the client, 'RRM' as a role reversal message or 'Q' as quit.")
                 self.menu.client_menu()
 
-    def initialize_client_connection(self, sent_server_ip: str = "", sent_server_port: int = 0) -> (str, int):
+    def initialize_client_connection(self, client_socket: socket, sent_server_ip: str = "", sent_server_port: int = 0) -> (str, int):
         self.frag_order = 0
-        client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
         # uncomment for testing purpose
         server_ip, server_port = "localhost", 50000
@@ -115,8 +102,9 @@ class Client:
             server_details = (server_ip, server_port)
 
             # sending initial_header to server
-            client_socket.sendto(self.initialize_message(FlagEnum.SYN.value, self.frag_order), server_details)
-            self.create_thread(client_socket, server_details)
+            client_socket.sendto(self.initialize_message(FlagEnum.INF.value, self.frag_order), server_details)
+            if not self.thread_ka:
+                self.create_thread(client_socket, server_details)
 
             # receiving response from the server
             received_flag, server_address = client_socket.recvfrom(self.buff_size)
@@ -127,15 +115,18 @@ class Client:
                 print(f"Connection initialized. Server details: {server_address}")
                 if client_socket is not None:
                     self.client_sender(client_socket, server_address)
+                    print(f"server socket: {client_socket} ########################################")
                     return server_ip, server_port
             else:
                 print("Connection failed!")
                 print("Message: NACK\n Connection failed!")
         except Exception as e:
-            print(f"blechy An error occurred: {e}. Try again.")
+            if client_socket:
+                client_socket.close()
+            print(f"initialize_client_connection: An error occurred: {e}. Try again.")
 
         # Return default values in case of failure
-        return server_ip, server_port
+        return server_ip, server_port, client_socket
 
     def pick_text_or_file(self) -> str:
         print('- [F] file message')
@@ -225,7 +216,7 @@ class Client:
                     return
 
             dgrams_num = self.count_dgrams(message, fragment_size)
-            bad_dgram = self.is_bad_datagram(dgrams_num)
+            bad_dgram = self.create_bad_datagram(dgrams_num)
 
             while self.all_dgrams_send(dgrams_num):
                 split_message = message[:fragment_size]
@@ -238,29 +229,36 @@ class Client:
                         message = message[fragment_size:]
                         break
 
-                    if bad_dgram != 0:
+                    if self.is_bad_dgram(bad_dgram):
                         client_socket.sendto(self.initialize_message(FlagEnum.DATA.value, self.frag_order, split_message) + bytes(101), server_address)
                     else:
                         client_socket.sendto(self.initialize_message(FlagEnum.DATA.value, self.frag_order, split_message), server_address)
 
-                    print(f"Sent fragment of {self.frag_order} - Size: {len(split_message)} bytes")
+                    print(f" - Sent fragment of {self.frag_order} - Size: {len(split_message)} bytes")
 
                     try:
                         while True:
-                            client_socket.settimeout(30)
+                            client_socket.settimeout(self.wait_timeout)
 
                             r_data = client_socket.recv(self.buff_size)
                             r_flag = self.menu.get_flag(r_data)
                             r_frag_order = self.menu.get_frag_order(r_data)
 
-                            if self.is_not_valid_dgrams(r_flag, r_frag_order) or self.is_NACK(r_flag):
-                                print("Damaged message or duplicated.")
+                            if self.is_not_valid_dgrams(r_frag_order):
+                                print(f"Duplicated, fragment {r_frag_order}.")
+                                attempt_count += 1
                                 continue
+
+                            if self.is_NACK(r_flag):
+                                print("NACK: Damaged message.")
+                                attempt_count += 1
+                                break
 
                             if self.is_all(dgrams_num):
                                 print(f"{self.frag_order} fragments were sent.")
                                 client_socket.sendto(self.initialize_message(FlagEnum.FIN.value, 0), server_address)
 
+                            attempt_count = 0
                             is_exit = True
                             break
 
@@ -270,11 +268,15 @@ class Client:
 
                 if attempt_count == self.attempts:
                     print("Maximum attempts reached. Unable to complete the operation.")
+                    print(f"Last sent fragment was {self.frag_order} - Size: {len(split_message)} bytes")
+                    client_socket.sendto(self.initialize_message(FlagEnum.END.value, 0), server_address)
                     break
 
     def all_attempts(self, attempt_count: int):
         return attempt_count < self.attempts
 
+    def is_bad_dgram(self, bad_dgram) -> bool:
+        return bad_dgram == self.frag_order
     @staticmethod
     def is_NACK(r_flag: int) -> bool:
         return r_flag is FlagEnum.NACK.value
@@ -285,8 +287,8 @@ class Client:
     def is_all(self, dgrams_num: int) -> bool:
         return self.frag_order == dgrams_num
 
-    def is_not_valid_dgrams(self, r_flag: int, r_frag_order: int) -> bool:
-        return r_flag != FlagEnum.ACK.value and r_frag_order != self.frag_order
+    def is_not_valid_dgrams(self, r_frag_order: int) -> bool:
+        return r_frag_order != self.frag_order
 
     def initialize_message(self, flag: int, frag_order: int, data: bytes = b'') -> bytes:
         header = Header(flag, frag_order, self.crc.calculate(data))
@@ -310,7 +312,7 @@ class Client:
             self.bad_datagram_input()
         return answer
 
-    def is_bad_datagram(self, dgrams_num: int) -> int:
+    def create_bad_datagram(self, dgrams_num: int) -> int:
         option = self.bad_datagram_input()
 
         if option == 'Y':

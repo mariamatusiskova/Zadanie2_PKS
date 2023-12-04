@@ -2,7 +2,7 @@ from enum import Enum
 
 
 class FlagEnum(Enum):
-    SYN = 1
+    INF = 1
     ACK = 2
     NACK = 3
     FILE = 4
@@ -10,3 +10,4 @@ class FlagEnum(Enum):
     KA = 6
     RRM = 7
     FIN = 8
+    END = 9
