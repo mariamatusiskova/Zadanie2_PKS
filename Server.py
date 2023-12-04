@@ -32,7 +32,7 @@ class Server:
         self.server_address = ()
         self.client_address = ()
         self.receive_queue = Queue()
-        self.lock_socket = threading.Lock()
+        self.lock_socket = threading.RLock()
 
     # def keep_alive_server(self, server_socket: socket, server_address: tuple):
     #     attempts_count = 0
@@ -85,8 +85,11 @@ class Server:
             print(f"{cp.PINK}keep_alive_server:{cp.RESET} im in the loop, thread is on")
 
             try:
-                r_header, self.client_address = server_socket.recvfrom(self.buff_size)
-                self.receive_queue.put(r_header)
+                with self.lock_socket:
+                    r_header, self.client_address = server_socket.recvfrom(self.buff_size)
+                    self.receive_queue.put(r_header)
+
+                r_header = self.receive_queue_manager(True, FlagEnum.KA.value)
 
                 r_flag, r_frag_order, r_crc, r_data = self.menu.initialize_recv_header(r_header)
                 print(
@@ -249,8 +252,9 @@ class Server:
                     self.create_thread(server_socket)
 
                 # receiving response from the client
-                r_header = server_socket.recv(self.buff_size)
-                self.receive_queue.put(r_header)
+                with self.lock_socket:
+                    r_header = server_socket.recv(self.buff_size)
+                    self.receive_queue.put(r_header)
 
                 r_data = self.receive_queue_manager(False, FlagEnum.INF.value)
                 print(f"data: {r_data}")
@@ -292,8 +296,9 @@ class Server:
         if server_socket is not None:
             while True:
 
-                r_header = server_socket.recv(self.buff_size)
-                self.receive_queue.put(r_header)
+                with self.lock_socket:
+                    r_header = server_socket.recv(self.buff_size)
+                    self.receive_queue.put(r_header)
 
                 r_header = self.receive_queue_manager(False)
                 r_flag, r_frag_order, r_crc, r_data = self.menu.initialize_recv_header(r_header)
@@ -429,11 +434,11 @@ class Server:
                     r_message = self.receive_queue.get(timeout=1)  # Add a timeout to avoid high CPU usage
                     r_flag = self.menu.get_flag(r_message)
 
-                    if ka_flag and flag == r_flag:
+                    if ka_flag and flag == r_flag and FlagEnum.KA.value == r_flag:
                         return r_message
-                    elif not ka_flag and flag == r_flag:
+                    elif not ka_flag and flag == r_flag and FlagEnum.KA.value != r_flag:
                         return r_message
-                    elif not ka_flag:
+                    elif not ka_flag and FlagEnum.KA.value != r_flag:
                         return r_message
 
                 except queue.Empty:

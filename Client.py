@@ -30,7 +30,7 @@ class Client:
         self.server_address = ()
         self.client_address = ()
         self.receive_queue = Queue()
-        self.lock_socket = threading.Lock()
+        self.lock_socket = threading.RLock()
 
     # def keep_alive_client(self, client_socket: socket):
     #     attempts_count = 0
@@ -90,8 +90,9 @@ class Client:
                     client_socket.sendto(self.initialize_message(FlagEnum.KA.value, 0), self.server_address)
                 print(f"{cp.BLUE}- Sending KA{cp.RESET}")
 
-                r_header = client_socket.recv(self.buff_size)
-                self.receive_queue.put(r_header)
+                with self.lock_socket:
+                    r_header = client_socket.recv(self.buff_size)
+                    self.receive_queue.put(r_header)
 
                 r_message = self.receive_queue_manager(True, FlagEnum.ACK_KA.value)
                 r_flag, r_frag_order, r_crc, r_data = self.menu.initialize_recv_header(r_message)
@@ -184,8 +185,9 @@ class Client:
             with self.lock_socket:
                 client_socket.sendto(self.initialize_message(FlagEnum.INF.value, self.frag_order), self.server_address)
 
-            r_data = client_socket.recv(self.buff_size)
-            self.receive_queue.put(r_data)
+            with self.lock_socket:
+                r_data = client_socket.recv(self.buff_size)
+                self.receive_queue.put(r_data)
 
             # receiving response from the server
             r_data = self.receive_queue_manager(False, FlagEnum.ACK.value)
@@ -289,8 +291,10 @@ class Client:
                 print(f"Sending the file path to the server.")
                 with self.lock_socket:
                     client_socket.sendto(self.initialize_message(FlagEnum.FILE.value, self.frag_order, path_to_save_file.encode('utf-8')), self.server_address)
-                r_data = client_socket.recv(self.buff_size)
-                self.receive_queue.put(r_data)
+
+                with self.lock_socket:
+                    r_data = client_socket.recv(self.buff_size)
+                    self.receive_queue.put(r_data)
 
                 r_data = self.receive_queue_manager(False, FlagEnum.ACK.value)
                 r_flag = self.menu.get_flag(r_data)
@@ -328,8 +332,9 @@ class Client:
                         while True:
                             client_socket.settimeout(self.wait_timeout)
 
-                            r_data = client_socket.recv(self.buff_size)
-                            self.receive_queue.put(r_data)
+                            with self.lock_socket:
+                                r_data = client_socket.recv(self.buff_size)
+                                self.receive_queue.put(r_data)
 
                             r_data = self.receive_queue_manager(False)
                             r_flag = self.menu.get_flag(r_data)
@@ -476,11 +481,11 @@ class Client:
 
                     r_flag = self.menu.get_flag(r_message)
 
-                    if ka_flag and flag == r_flag:
+                    if ka_flag and flag == r_flag and FlagEnum.ACK_KA.value == r_flag:
                         return r_message
-                    elif not ka_flag and flag == r_flag:
+                    elif not ka_flag and flag == r_flag and FlagEnum.ACK_KA.value != r_flag:
                         return r_message
-                    elif not ka_flag:
+                    elif not ka_flag and FlagEnum.ACK_KA.value != r_flag:
                         return r_message
 
                 except queue.Empty:
