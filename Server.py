@@ -85,9 +85,8 @@ class Server:
             print(f"{cp.PINK}keep_alive_server:{cp.RESET} im in the loop, thread is on")
 
             try:
-                with self.lock_socket:
-                    r_header, self.client_address = server_socket.recvfrom(self.buff_size)
-                    self.receive_queue.put(r_header)
+                r_header, self.client_address = server_socket.recvfrom(self.buff_size)
+                self.receive_queue.put(r_header)
 
                 r_header = self.receive_queue_manager(True, FlagEnum.KA.value)
 
@@ -252,16 +251,14 @@ class Server:
                     self.create_thread(server_socket)
 
                 # receiving response from the client
-                with self.lock_socket:
-                    r_header = server_socket.recv(self.buff_size)
-                    self.receive_queue.put(r_header)
+                r_header = server_socket.recv(self.buff_size)
+                self.receive_queue.put(r_header)
 
                 r_data = self.receive_queue_manager(False, FlagEnum.INF.value)
                 print(f"data: {r_data}")
 
                 # sending initial_header to client
-                with self.lock_socket:
-                    server_socket.sendto(self.initialize_message(FlagEnum.ACK.value, 0), self.client_address)
+                server_socket.sendto(self.initialize_message(FlagEnum.ACK.value, 0), self.client_address)
 
                 # processing received data
                 r_flag = self.menu.get_flag(r_data)
@@ -296,9 +293,8 @@ class Server:
         if server_socket is not None:
             while True:
 
-                with self.lock_socket:
-                    r_header = server_socket.recv(self.buff_size)
-                    self.receive_queue.put(r_header)
+                r_header = server_socket.recv(self.buff_size)
+                self.receive_queue.put(r_header)
 
                 r_header = self.receive_queue_manager(False)
                 r_flag, r_frag_order, r_crc, r_data = self.menu.initialize_recv_header(r_header)
@@ -306,8 +302,7 @@ class Server:
                 if self.is_FIN(r_flag):
                     print(f"FIN, end of connection.")
                     print(f" - {self.count_recv_dgram} fragments were received.")
-                    with self.lock_socket:
-                        server_socket.sendto(self.initialize_message(FlagEnum.ACK.value, r_frag_order), self.client_address)
+                    server_socket.sendto(self.initialize_message(FlagEnum.ACK.value, r_frag_order), self.client_address)
                     break
 
                 if self.is_END(r_flag):
@@ -324,15 +319,13 @@ class Server:
                         print(f"Received fragment of {r_frag_order} - Size: {len(r_data)} bytes")
                         save_frag_message[r_frag_order] = r_data
                         self.count_recv_dgram += 1
-                    with self.lock_socket:
                         server_socket.sendto(self.initialize_message(FlagEnum.ACK.value, r_frag_order), self.client_address)
                 elif self.validator.is_crc_valid(r_data, r_crc, self.crc):
                     print(f"Data received, but they are duplicated, fragment {r_frag_order}.")
                 else:
                     print(f"Fragment {r_frag_order} is damaged. --> NACK")
                     print(f" - Received fragment of {r_frag_order} - Size: {len(r_data)} bytes")
-                    with self.lock_socket:
-                        server_socket.sendto(self.initialize_message(FlagEnum.NACK.value, r_frag_order), self.client_address)
+                    server_socket.sendto(self.initialize_message(FlagEnum.NACK.value, r_frag_order), self.client_address)
 
             joined_data = b''.join([save_frag_message[frag_order] for frag_order in sorted(save_frag_message.keys())])
 
@@ -440,6 +433,11 @@ class Server:
                         return r_message
                     elif not ka_flag and FlagEnum.KA.value != r_flag:
                         return r_message
+
+                    self.receive_queue.put(r_message)
+                    break
+
+                    print(f"{cp.ORANGE}receive_queue_manager: Didn't return{cp.RESET}")
 
                 except queue.Empty:
                     pass  # Continue the loop if the queue is empty
