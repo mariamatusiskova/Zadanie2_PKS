@@ -180,7 +180,8 @@ class Server:
             print(f"data: {r_data}")
 
             # sending initial_header to client
-            server_socket.sendto(self.initialize_message(FlagEnum.ACK.value, 0), self.client_address)
+            with self.lock_socket:
+                server_socket.sendto(self.initialize_message(FlagEnum.ACK.value, 0), self.client_address)
 
             # processing received data
             r_flag = self.menu.get_flag(r_data)

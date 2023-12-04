@@ -211,7 +211,7 @@ class Client:
             print(f"{cp.CYAN}initialize_client_connection:{cp.RESET} An error occurred: {e}. Try again.")
 
         # Return default values in case of failure
-        return server_ip, server_port, client_socket
+        return server_ip, server_port
 
     def pick_text_or_file(self) -> str:
         print('- [F] file message')

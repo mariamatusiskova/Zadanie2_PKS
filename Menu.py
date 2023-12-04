@@ -135,9 +135,9 @@ class Menu:
                 if is_address:
                     is_address, server_ip, server_port = client.handle_client_input(client_input, client_socket, server_ip, server_port)
                 else:
-                    is_address, server_ip, server_port, client_socket = client.handle_client_input(client_input, client_socket)
+                    is_address, server_ip, server_port = client.handle_client_input(client_input, client_socket)
         except Exception as e:
-            print(f"{cp.YELLOW}Menu client: An error occurred: {e}. Try again.{cp.RESET}")
+            print(f"{cp.YELLOW}client_menu: An error occurred: {e}. Try again.{cp.RESET}")
         # finally:
         #     if client_socket:
         #         client_socket.close()
