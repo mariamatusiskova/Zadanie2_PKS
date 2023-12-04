@@ -34,12 +34,9 @@ class Client:
             print("keep_alive: im in the loop, thread is on")
             print(f"keep_alive: server address: {self.server_address}")
             client_socket.sendto(self.initialize_message(FlagEnum.KA.value, 0), self.server_address)
-            r_data = client_socket.recv(self.buff_size)
-            r_flag = self.menu.get_flag(r_data)
+            r_header = client_socket.recv(self.buff_size)
+            r_flag, r_frag_order, r_crc, r_data = self.menu.initialize_recv_header(r_header)
             print(f"keep_alive: client flag: {r_flag} (((((((((((((((((((((((((((((((((((((((((((")
-            r_frag_order = self.menu.get_frag_order(r_data)
-            r_crc = self.menu.get_crc(r_data)
-            r_data_d = self.menu.get_data(r_data)
 
             if self.is_ACK_KA(r_flag):
                 print("Keep-alive client: ACK_KA received.")
@@ -47,7 +44,7 @@ class Client:
                 attempts_count = 0
                 start_time = time.time()
             else:
-                client_socket.sendto(self.initialize_message(r_flag, r_frag_order, r_data_d, r_crc), client_address)
+                client_socket.sendto(self.initialize_message(r_flag, r_frag_order, r_data, r_crc), client_address)
                 print("keep_alive: Error: Didn't receive ACK_KA.")
                 attempts_count += 1
                 time.sleep(self.wait_timeout)
@@ -376,14 +373,14 @@ class Client:
     def is_ACK_KA(r_flag) -> bool:
         return r_flag is FlagEnum.ACK_KA.value
 
-    def send_ACK_KA_back(self, server_socket: socket):
-        #while True:
-        r_data = server_socket.recv(self.buff_size)
-        r_flag = self.menu.get_flag(r_data)
-        print(f"send_ACK_KA_back: before condition {r_flag}")
+    def send_ACK_KA_back(self, server_socket: socket) -> bytes:
+        while True:
+            r_data = server_socket.recv(self.buff_size)
+            r_flag = self.menu.get_flag(r_data)
+            print(f"send_ACK_KA_back: before condition {r_flag}")
 
-        if self.is_ACK_KA(r_flag):
-            print(f"send_ACK_KA_back: I'm in the condition if self.is_KA {r_flag}")
-            server_socket.sendto(self.initialize_message(FlagEnum.ACK_KA.value, 0), self.client_address)
-        else:
-            return r_data
+            if self.is_ACK_KA(r_flag):
+                print(f"send_ACK_KA_back: I'm in the condition if self.is_KA {r_flag}")
+                server_socket.sendto(self.initialize_message(FlagEnum.ACK_KA.value, 0), self.client_address)
+            else:
+                return r_data

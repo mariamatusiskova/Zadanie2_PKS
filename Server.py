@@ -35,7 +35,7 @@ class Server:
         while self.thread_on:
             print("keep_KA_sending: im in the loop, thread is on")
             r_header, self.client_address = server_socket.recvfrom(self.buff_size)
-            r_flag, r_frag_order, r_crc, r_data = self.initialize_recv_header(r_header)
+            r_flag, r_frag_order, r_crc, r_data = self.menu.initialize_recv_header(r_header)
             print(f"keep_KA_sending: server KA: {r_flag} (((((((((((((((((((((((((((((((((((((((((((")
             if self.is_KA(r_flag):
                 # reset values
@@ -56,8 +56,6 @@ class Server:
                         server_socket.close()
                     self.menu.menu()
                     break
-
-            time.sleep(self.timeout)
 
     def create_thread(self, server_socket: socket):
         self.thread_ka = threading.Thread(target=self.keep_KA_sending, args=(server_socket, self.server_address))
@@ -261,17 +259,14 @@ class Server:
     def is_DATA(r_flag) -> bool:
         return r_flag is FlagEnum.DATA.value
 
-    def send_KA_back(self, server_socket: socket):
-        #while True:
-        r_data = server_socket.recv(self.buff_size)
-        r_flag = self.menu.get_flag(r_data)
-        print(f"send_ACK_KA_back: before condition {r_flag}")
+    def send_KA_back(self, server_socket: socket) -> bytes:
+        while True:
+            r_data = server_socket.recv(self.buff_size)
+            r_flag = self.menu.get_flag(r_data)
+            print(f"send_ACK_KA_back: before condition {r_flag}")
 
-        if self.is_KA(r_flag):
-            print(f"send_KA_back: I'm in the condition if self.is_KA {r_flag}")
-            server_socket.sendto(self.initialize_message(FlagEnum.KA.value, 0), self.server_address)
-        else:
-            return r_data
-
-    def initialize_recv_header(self, r_header: bytes) -> (int, int, int, bytes):
-        return self.menu.get_flag(r_header), self.menu.get_frag_order(r_header), self.menu.get_crc(r_header), self.menu.get_data(r_header)
+            if self.is_KA(r_flag):
+                print(f"send_KA_back: I'm in the condition if self.is_KA {r_flag}")
+                server_socket.sendto(self.initialize_message(FlagEnum.KA.value, 0), self.server_address)
+            else:
+                return r_data

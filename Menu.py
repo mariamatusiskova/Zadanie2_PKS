@@ -46,6 +46,9 @@ class Menu:
         print("The program exited.")
         sys.exit(1)
 
+    def initialize_recv_header(self, r_header: bytes) -> (int, int, int, bytes):
+        return self.get_flag(r_header), self.get_frag_order(r_header), self.get_crc(r_header), self.get_data(r_header)
+
     def get_ip_input(self, role: str) -> str:
         while True:
             ip = input(f"Enter IP address of the {role}: ")
