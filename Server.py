@@ -32,7 +32,7 @@ class Server:
         self.server_address = ()
         self.client_address = ()
         self.receive_queue = Queue()
-        self.lock_socket = threading.RLock()
+        self.lock_socket = threading.Lock()
 
     # def keep_alive_server(self, server_socket: socket, server_address: tuple):
     #     attempts_count = 0
@@ -87,7 +87,7 @@ class Server:
             try:
                 with self.lock_socket:
                     r_header, self.client_address = server_socket.recvfrom(self.buff_size)
-                    self.receive_queue.put(r_header)
+                self.receive_queue.put(r_header)
 
                 r_header = self.receive_queue_manager(True, FlagEnum.KA.value)
 
@@ -112,15 +112,15 @@ class Server:
                         print(
                             f"{cp.RED}Failed to receive KA after 3 attempts or timeout. Returning to the menu.{cp.RESET}")
                         # Close the socket only if it's still open
-                        if server_socket.fileno() != -1:
-                            server_socket.close()
+                        # if server_socket.fileno() != -1:
+                        #     server_socket.close()
                         self.menu.menu()
                         break
             except socket.error as e:
                 print(f"{cp.RED}Socket error: {e}{cp.RESET}")
-                # Close the socket in case of an error
-                if server_socket.fileno() != -1:
-                    server_socket.close()
+                # # Close the socket in case of an error
+                # if server_socket.fileno() != -1:
+                #     server_socket.close()
                 break
 
     def create_thread(self, server_socket: socket):
@@ -139,13 +139,13 @@ class Server:
                 print(f"Swapping roles.")
                 self.thread_on = False
                 self.receive_thread.join()
-                server_socket.close()
+                #server_socket.close()
                 # swap
                 break
             elif server_input == 'Q':
                 self.thread_on = False
                 self.receive_thread.join()
-                server_socket.close()
+               # server_socket.close()
                 self.menu.quit_programme()
             else:
                 print(f"{cp.YELLOW}Invalid input. Use 'S' as a settings of the server, 'RRM' as a role reversal message or 'Q' as quit.{cp.RESET}")
@@ -164,9 +164,8 @@ class Server:
                 # server_port = self.menu.get_port_input("receiver")
             server_details = (SERVER_HOST_IP, server_port)
 
-            with server_socket:
-                server_socket.bind(server_details)
-                self.server_address = server_details
+            server_socket.bind(server_details)
+            self.server_address = server_details
 
             if not self.receive_thread:
                 print(f"initialize_server_connection: Im in if not self.thread_ka:")
@@ -175,7 +174,7 @@ class Server:
             # receiving response from the client
             with self.lock_socket:
                 r_header = server_socket.recv(self.buff_size)
-                self.receive_queue.put(r_header)
+            self.receive_queue.put(r_header)
 
             r_data = self.receive_queue_manager(False, FlagEnum.INF.value)
             print(f"data: {r_data}")
@@ -195,8 +194,8 @@ class Server:
             else:
                 print(f"{cp.RED}Connection failed!{cp.RESET}")
         except Exception as e:
-            if server_socket:
-                server_socket.close()
+            # if server_socket:
+            #     server_socket.close()
             print(f"{cp.RED}initialize_server_connection: An error occurred: {e}. Try again.{cp.RESET}")
 
     # def initialize_server_connection(self, server_socket: socket, sent_server_port: int = 0) -> int:
@@ -298,7 +297,7 @@ class Server:
             while True:
                 with self.lock_socket:
                     r_header = server_socket.recv(self.buff_size)
-                    self.receive_queue.put(r_header)
+                self.receive_queue.put(r_header)
 
                 r_header = self.receive_queue_manager(False)
                 r_flag, r_frag_order, r_crc, r_data = self.menu.initialize_recv_header(r_header)

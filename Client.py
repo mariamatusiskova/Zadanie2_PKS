@@ -30,7 +30,7 @@ class Client:
         self.server_address = ()
         self.client_address = ()
         self.receive_queue = Queue()
-        self.lock_socket = threading.RLock()
+        self.lock_socket = threading.Lock()
 
     # def keep_alive_client(self, client_socket: socket):
     #     attempts_count = 0
@@ -92,9 +92,10 @@ class Client:
 
                 with self.lock_socket:
                     r_header = client_socket.recv(self.buff_size)
-                    self.receive_queue.put(r_header)
+                self.receive_queue.put(r_header)
 
                 r_message = self.receive_queue_manager(True, FlagEnum.ACK_KA.value)
+                print(f"{cp.BLUE}keep_alive_client:{cp.RESET} r_message: {r_message}")
                 r_flag, r_frag_order, r_crc, r_data = self.menu.initialize_recv_header(r_message)
                 print(
                     f"{cp.BLUE}keep_alive_client:{cp.RESET} client flag: {r_flag} (((((((((((((((((((((((((((((((((((((((((((")
@@ -113,8 +114,8 @@ class Client:
                         print(
                             f"{cp.BLUE}keep_alive_client:{cp.RESET} Failed to receive ACK_KA after 3 attempts or timeout. Returning to the menu.")
                         # Close the socket only if it's still open
-                        if client_socket.fileno() != -1:
-                            client_socket.close()
+                        # if client_socket.fileno() != -1:
+                        #     client_socket.close()
                         self.menu.menu()
                         self.menu.quit_programme()
 
@@ -123,8 +124,8 @@ class Client:
             except socket.error as e:
                 print(f"{cp.RED}Socket error: {e}{cp.RESET}")
                 # Close the socket in case of an error
-                if client_socket.fileno() != -1:
-                    client_socket.close()
+                # if client_socket.fileno() != -1:
+                #     client_socket.close()
                 break
 
     def create_thread(self, client_socket: socket):
@@ -144,13 +145,13 @@ class Client:
                 print(f"{cp.CYAN}handle_client_input:{cp.RESET} Swapping roles.")
                 self.thread_on = False
                 self.receive_thread.join()
-                client_socket.close()
+              #  client_socket.close()
                 # swap
                 break
             elif client_input == 'Q':
                 self.thread_on = False
                 self.receive_thread.join()
-                client_socket.close()
+               # client_socket.close()
                 self.menu.quit_programme()
             else:
                 print(
@@ -187,7 +188,7 @@ class Client:
 
             with self.lock_socket:
                 r_data = client_socket.recv(self.buff_size)
-                self.receive_queue.put(r_data)
+            self.receive_queue.put(r_data)
 
             # receiving response from the server
             r_data = self.receive_queue_manager(False, FlagEnum.ACK.value)
@@ -205,8 +206,8 @@ class Client:
                 print(f"{cp.CYAN}initialize_client_connection:{cp.RESET} Connection failed!")
                 print(f"{cp.CYAN}initialize_client_connection:{cp.RESET} Message: NACK\n Connection failed!")
         except Exception as e:
-            if client_socket:
-                client_socket.close()
+            # if client_socket:
+            #     client_socket.close()
             print(f"{cp.CYAN}initialize_client_connection:{cp.RESET} An error occurred: {e}. Try again.")
 
         # Return default values in case of failure
@@ -294,7 +295,7 @@ class Client:
 
                 with self.lock_socket:
                     r_data = client_socket.recv(self.buff_size)
-                    self.receive_queue.put(r_data)
+                self.receive_queue.put(r_data)
 
                 r_data = self.receive_queue_manager(False, FlagEnum.ACK.value)
                 r_flag = self.menu.get_flag(r_data)
@@ -334,7 +335,7 @@ class Client:
 
                             with self.lock_socket:
                                 r_data = client_socket.recv(self.buff_size)
-                                self.receive_queue.put(r_data)
+                            self.receive_queue.put(r_data)
 
                             r_data = self.receive_queue_manager(False)
                             r_flag = self.menu.get_flag(r_data)
@@ -488,10 +489,10 @@ class Client:
                     elif not ka_flag and FlagEnum.ACK_KA.value != r_flag:
                         return r_message
 
+                    print(f"{cp.ORANGE}receive_queue_manager: Didn't return{cp.RESET}")
+
                     self.receive_queue.put(r_message)
                     break
-
-                    print(f"{cp.ORANGE}receive_queue_manager: Didn't return{cp.RESET}")
 
                 except queue.Empty:
                     print(f"{cp.RED}Queue is empty!{cp.RESET}")
