@@ -4,6 +4,7 @@ import socket
 from Client import Client
 from Server import Server
 from Validator import Validator
+from ColorPalette import ColorPalette as cp
 
 
 class Menu:
@@ -15,17 +16,17 @@ class Menu:
     def handle_user_input(self, user_input: str):
         while True:
             if user_input == 'C':
-                print("Running as client.")
+                print(f"Running as client.")
                 self.client_menu()
                 break
             elif user_input == 'S':
-                print("Running as server.")
+                print(f"Running as server.")
                 self.server_menu()
                 break
             elif user_input == 'Q':
                 self.quit_programme()
             else:
-                print("Invalid input. Use 'C' as a client, 'S' as a server or 'Q' as quit.")
+                print(f"{cp.YELLOW}Invalid input. Use 'C' as a client, 'S' as a server or 'Q' as quit.{cp.RESET}")
                 self.menu()
 
     def menu(self):
@@ -43,7 +44,7 @@ class Menu:
 
     @staticmethod
     def quit_programme():
-        print("The program exited.")
+        print(f"The program exited.")
         sys.exit(1)
 
     def initialize_recv_header(self, r_header: bytes) -> (int, int, int, bytes):
@@ -55,7 +56,7 @@ class Menu:
             if self.validator.is_valid_ip(ip):
                 return ip
             else:
-                print("Invalid IP address. Please enter a valid IP.")
+                print(f"{cp.YELLOW}Invalid IP address. Please enter a valid IP.{cp.RESET}")
 
     def get_port_input(self, role: str) -> str:
         while True:
@@ -63,7 +64,7 @@ class Menu:
             if self.validator.is_valid_port(port):
                 return port
             else:
-                print("Invalid port, should be in interval <0, 65 535>. Please enter a valid port.")
+                print(f"{cp.YELLOW}Invalid port, should be in interval <0, 65 535>. Please enter a valid port.{cp.RESET}")
 
     @staticmethod
     def get_flag(data) -> int:
@@ -92,7 +93,7 @@ class Menu:
                 client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
                 if is_address:
-                    print("- [S] continue as Client")
+                    print(f"- [S] continue as Client")
                 else:
                     print('- [S] set the IP address and port of the receiver')
                 print('- [RRM] switch role to server')
@@ -106,7 +107,7 @@ class Menu:
                 else:
                     is_address, server_ip, server_port = client.handle_client_input(client_input, client_socket)
         except Exception as e:
-            print(f"Menu client: An error occurred: {e}. Try again.")
+            print(f"{cp.YELLOW}Menu client: An error occurred: {e}. Try again.{cp.RESET}")
         finally:
             if client_socket:
                 client_socket.close()
@@ -121,7 +122,7 @@ class Menu:
                 server_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
 
                 if is_address:
-                    print("- [S] continue as Server")
+                    print(f"- [S] continue as Server")
                 else:
                     print('- [S] set port of the server')
                 print('- [RRM] switch role to client')
@@ -135,7 +136,7 @@ class Menu:
                 else:
                     is_address, server_port = server.handle_server_input(server_input, server_socket)
         except Exception as e:
-            print(f"Menu server: An error occurred: {e}. Try again.")
+            print(f"{cp.YELLOW}Menu server: An error occurred: {e}. Try again.{cp.RESET}")
         finally:
             if server_socket:
                 server_socket.close()

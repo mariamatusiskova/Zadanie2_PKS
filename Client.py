@@ -4,11 +4,14 @@ import random
 import socket
 import threading
 import time
+import copy
+from queue import Queue
 
 from CRC32 import CRC32
 from FlagEnum import FlagEnum
 from Header import Header
 from Validator import Validator
+from ColorPalette import ColorPalette as cp
 
 
 class Client:
@@ -18,50 +21,64 @@ class Client:
         self.frag_order = 0
         self.attempts = 3
         self.thread_on = False
-        self.menu = menu
+        self.menu = copy.deepcopy(menu)
         self.crc = CRC32()
         self.validator = Validator()
         self.thread_ka = None
         self.wait_timeout = 30
         self.server_address = ()
         self.client_address = ()
+        self.lock_socket = threading.Lock()
+        self.send_queue = Queue()
+        self.receive_queue = Queue()
 
-    def keep_alive(self, client_socket: socket, client_address: tuple):
+    def keep_alive_client(self, client_socket: socket, client_address: tuple):
         attempts_count = 0
         start_time = time.time()
 
         while self.thread_on:
-            print("keep_alive: im in the loop, thread is on")
-            print(f"keep_alive: server address: {self.server_address}")
-            client_socket.sendto(self.initialize_message(FlagEnum.KA.value, 0), self.server_address)
-            print("- Sending KA")
-            r_header = client_socket.recv(self.buff_size)
-            r_flag, r_frag_order, r_crc, r_data = self.menu.initialize_recv_header(r_header)
-            print(f"keep_alive: client flag: {r_flag} (((((((((((((((((((((((((((((((((((((((((((")
 
-            if self.is_ACK_KA(r_flag):
-                print("Keep-alive client: ACK_KA received.")
-                # reset values
-                attempts_count = 0
-                start_time = time.time()
-            else:
-                client_socket.sendto(self.initialize_message(r_flag, r_frag_order, r_data, r_crc), client_address)
-                print("keep_alive: Error: Didn't receive ACK_KA.")
-                attempts_count += 1
-                time.sleep(self.wait_timeout)
+            try:
+                print(f"{cp.BLUE}keep_alive_client:{cp.RESET} im in the loop, thread is on")
+                print(f"{cp.BLUE}keep_alive_client:{cp.RESET} server address: {self.server_address}")
+                with self.lock_socket:
+                    client_socket.sendto(self.initialize_message(FlagEnum.KA.value, 0), self.server_address)
+                print(f"{cp.BLUE}- Sending KA{cp.RESET}")
+                with self.lock_socket:
+                    r_header = client_socket.recv(self.buff_size)
+                r_flag, r_frag_order, r_crc, r_data = self.menu.initialize_recv_header(r_header)
+                print(f"{cp.BLUE}keep_alive_client:{cp.RESET} client flag: {r_flag} (((((((((((((((((((((((((((((((((((((((((((")
 
-                if attempts_count >= self.attempts or time.time() - start_time >= self.wait_timeout:
-                    print("Failed to receive ACK_KA after 3 attempts or timeout. Returning to the menu.")
-                    # Close the socket only if it's still open
-                    if client_socket.fileno() != -1:
-                        client_socket.close()
-                    self.menu.menu()
-                    break
+                if self.is_ACK_KA(r_flag):
+                    print(f"{cp.BLUE}keep_alive_client:{cp.RESET}  ACK_KA received.")
+                    # reset values
+                    attempts_count = 0
+                    start_time = time.time()
+                else:
+                    client_socket.sendto(self.initialize_message(r_flag, r_frag_order, r_data, r_crc), client_address)
+                    print(f"{cp.BLUE}keep_alive_client:{cp.RESET} Error: Didn't receive ACK_KA.")
+                    attempts_count += 1
+                    time.sleep(self.wait_timeout)
 
-            time.sleep(self.timeout)
+                    if attempts_count >= self.attempts or time.time() - start_time >= self.wait_timeout:
+                        print(f"{cp.BLUE}keep_alive_client:{cp.RESET}Failed to receive ACK_KA after 3 attempts or timeout. Returning to the menu.")
+                        # Close the socket only if it's still open
+                        if client_socket.fileno() != -1:
+                            client_socket.close()
+                        self.menu.menu()
+                        break
 
-    def create_thread(self, client_socket: socket):
-        self.thread_ka = threading.Thread(target=self.keep_alive, args=(client_socket, self.client_address))
+                time.sleep(self.timeout)
+
+            except socket.error as e:
+                print(f"{cp.RED}Socket error: {e}{cp.RESET}")
+                # Close the socket in case of an error
+                if client_socket.fileno() != -1:
+                    client_socket.close()
+                break
+
+    def create_threads(self, client_socket: socket):
+        self.thread_ka = threading.Thread(target=self.keep_alive_client, args=(client_socket, self.client_address))
         self.thread_ka.daemon = True
         self.thread_on = True
         self.thread_ka.start()
@@ -71,10 +88,10 @@ class Client:
         while True:
             if client_input == 'S':
                 server_ip, server_port = self.initialize_client_connection(client_socket, server_ip, server_port)
-                print(f"server socket: {client_socket} ########################################")
+                print(f"{cp.CYAN}handle_client_input:{cp.RESET} server socket: {client_socket} ########################################")
                 return True, server_ip, server_port
             elif client_input == 'RRM':
-                print("Swapping roles.")
+                print(f"{cp.CYAN}handle_client_input:{cp.RESET} Swapping roles.")
                 self.thread_on = False
                 self.thread_ka.join()
                 client_socket.close()
@@ -87,7 +104,7 @@ class Client:
                 self.menu.quit_programme()
             else:
                 print(
-                    "Invalid input. Use 'S' as a settings of the client, 'RRM' as a role reversal message or 'Q' as quit.")
+                    f"{cp.CYAN}handle_client_input:{cp.RESET} Invalid input. Use 'S' as a settings of the client, 'RRM' as a role reversal message or 'Q' as quit.")
                 self.menu.client_menu()
 
     def initialize_client_connection(self, client_socket: socket, sent_server_ip: str = "", sent_server_port: int = 0) -> (str, int):
@@ -106,12 +123,12 @@ class Client:
             self.server_address = (server_ip, server_port)
             client_socket.bind(('0.0.0.0', 0))
             own_ip, own_port = client_socket.getsockname()
-            print(f"own ip: {own_ip} own port: {own_port}")
+            print(f"{cp.CYAN}initialize_client_connection:{cp.RESET} own ip: {own_ip} own port: {own_port}")
 
             self.client_address = (own_ip, own_port)
 
             if not self.thread_ka:
-                print("initialize_client_connection: Im in if not self.thread_ka:")
+                print(f"{cp.CYAN}initialize_client_connection:{cp.RESET} Im in if not self.thread_ka:")
                 self.create_thread(client_socket)
 
             # sending initial_header to server
@@ -122,20 +139,20 @@ class Client:
 
             # processing received data
             r_flag = self.menu.get_flag(r_data)
-            print(f"initialize_client_connection: received server flag: {r_flag} (((((((((((((((((((((((((((((((((((((((((((")
+            print(f"{cp.CYAN}initialize_client_connection:{cp.RESET} received server flag: {r_flag} (((((((((((((((((((((((((((((((((((((((((((")
             if self.is_ACK(r_flag):
-                print(f"Connection initialized. Server details: {self.server_address}")
+                print(f"{cp.CYAN}initialize_client_connection:{cp.RESET} Connection initialized. Server details: {self.server_address}")
                 if client_socket is not None:
                     self.client_sender(client_socket)
-                    print(f"server socket: {client_socket} ########################################")
+                    print(f"{cp.CYAN}initialize_client_connection:{cp.RESET} server socket: {client_socket} ########################################")
                     return server_ip, server_port
             else:
-                print("Connection failed!")
-                print("Message: NACK\n Connection failed!")
+                print(f"{cp.CYAN}initialize_client_connection:{cp.RESET} Connection failed!")
+                print(f"{cp.CYAN}initialize_client_connection:{cp.RESET} Message: NACK\n Connection failed!")
         except Exception as e:
             if client_socket:
                 client_socket.close()
-            print(f"initialize_client_connection: An error occurred: {e}. Try again.")
+            print(f"{cp.CYAN}initialize_client_connection:{cp.RESET} An error occurred: {e}. Try again.")
 
         # Return default values in case of failure
         return server_ip, server_port, client_socket
@@ -187,9 +204,9 @@ class Client:
 
                 return file_content, file_name
             except FileNotFoundError:
-                print("Didn't find the file. Try again.")
+                print(f"{cp.RED}Didn't find the file. Try again.{cp.RESET}")
             except Exception as e:
-                print(f"An error occurred: {e}. Try again.")
+                print(f"{cp.RED}An error occurred: {e}. Try again.{cp.RESET}")
 
     def client_sender(self, client_socket: socket):
 
@@ -206,7 +223,7 @@ class Client:
                     self.send_message(client_socket, message_type, file_message, file_name)
                     break
                 else:
-                    print("Invalid command!")
+                    print(f"{cp.RED}Invalid command!{cp.RESET}")
 
     def send_message(self, client_socket: socket, message_type: str, message: bytes, file_name: str = ""):
         self.frag_order = 0
@@ -216,15 +233,15 @@ class Client:
 
             if message_type == 'F':
                 path_to_save_file = self.get_path_to_save_file(file_name)
-                print("Sending the file path to the server.")
+                print(f"Sending the file path to the server.")
                 client_socket.sendto(self.initialize_message(FlagEnum.FILE.value, self.frag_order, path_to_save_file.encode('utf-8')), self.server_address)
                 r_data = self.send_ACK_KA_back(client_socket)
                 r_flag = self.menu.get_flag(r_data)
 
                 if self.is_ACK(r_flag):
-                    print("Acknowledgment received. Sending the file to the server.")
+                    print(f"Acknowledgment received. Sending the file to the server.")
                 else:
-                    print("Error: Didn't receive ACK. Unable to complete the operation.")
+                    print(f"{cp.RED}Error: Didn't receive ACK. Unable to complete the operation.{cp.RESET}")
                     return
 
             dgrams_num = self.count_dgrams(message, fragment_size)
@@ -262,7 +279,7 @@ class Client:
                                 continue
 
                             if self.is_NACK(r_flag):
-                                print("NACK: Damaged message.")
+                                print(f"NACK: Damaged message.")
                                 attempt_count += 1
                                 break
 
@@ -275,11 +292,11 @@ class Client:
                             break
 
                     except socket.timeout:
-                        print("Timeout! Sending packet again.")
+                        print(f"{cp.YELLOW}Timeout! Sending packet again.{cp.RESET}")
                         attempt_count += 1
 
                 if attempt_count == self.attempts:
-                    print("Maximum attempts reached. Unable to complete the operation.")
+                    print(f"{cp.RED}Maximum attempts reached. Unable to complete the operation.{cp.RESET}")
                     print(f"Last sent fragment was {self.frag_order} - Size: {len(split_message)} bytes")
                     client_socket.sendto(self.initialize_message(FlagEnum.END.value, 0), self.server_address)
                     break
@@ -289,6 +306,7 @@ class Client:
 
     def is_bad_dgram(self, bad_dgram) -> bool:
         return bad_dgram == self.frag_order
+
     @staticmethod
     def is_NACK(r_flag: int) -> bool:
         return r_flag is FlagEnum.NACK.value
@@ -314,7 +332,7 @@ class Client:
         return self.frag_order == bad_dgram_num
 
     def bad_datagram_input(self):
-        print("Do you want to send a bad fragment during conversation?")
+        print(f"Do you want to send a bad fragment during conversation?")
         print('- [Y] yes')
         print('- [N] no')
         answer = self.menu.options()
@@ -348,9 +366,9 @@ class Client:
                 if self.validator.is_valid_fragment_size(fragment_size):
                     return fragment_size
                 else:
-                    print("Invalid input!")
+                    print(f"{cp.YELLOW}Invalid input!{cp.RESET}")
             except ValueError:
-                print("Invalid input! Please enter a valid integer.")
+                print(f"{cp.YELLOW}Invalid input! Please enter a valid integer.{cp.RESET}")
 
     @staticmethod
     def get_path_to_save_file(file_name: str) -> str:
@@ -360,7 +378,7 @@ class Client:
             if os.path.isdir(path):
                 return path + file_name
             else:
-                print("Invalid path. Please enter a valid file path.")
+                print(f"{cp.YELLOW}Invalid path. Please enter a valid file path.{cp.RESET}")
 
     @staticmethod
     def get_text_message_from_input() -> bytes:
@@ -376,12 +394,14 @@ class Client:
 
     def send_ACK_KA_back(self, server_socket: socket) -> bytes:
         while True:
-            r_data = server_socket.recv(self.buff_size)
+            with self.lock_socket:
+                r_data = server_socket.recv(self.buff_size)
             r_flag = self.menu.get_flag(r_data)
-            print(f"send_ACK_KA_back: before condition {r_flag}")
+            print(f"{cp.MAGENTA}send_ACK_KA_back:{cp.RESET} before condition {r_flag}")
 
             if self.is_ACK_KA(r_flag):
-                print(f"send_ACK_KA_back: I'm in the condition if self.is_KA {r_flag}")
-                server_socket.sendto(self.initialize_message(FlagEnum.ACK_KA.value, 0), self.client_address)
+                print(f"{cp.MAGENTA}send_ACK_KA_back:{cp.RESET} I'm in the condition if self.is_KA {r_flag}")
+                with self.lock_socket:
+                    server_socket.sendto(self.initialize_message(FlagEnum.ACK_KA.value, 0), self.client_address)
             else:
                 return r_data
