@@ -82,6 +82,36 @@ class Menu:
     def get_data(data) -> bytes:
         return data[7:]
 
+    # def client_menu(self):
+    #     is_address = False
+    #     server_ip = ""
+    #     server_port = 0
+    #     client_socket = None
+    #
+    #     try:
+    #         while True:
+    #             client_socket = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    #
+    #             if is_address:
+    #                 print(f"- [S] continue as Client")
+    #             else:
+    #                 print('- [S] set the IP address and port of the receiver')
+    #             print('- [RRM] switch role to server')
+    #             print('- [Q] quit')
+    #             client_input = self.options()
+    #             client_input = client_input.upper()
+    #             print(f'Picked client_input: {client_input}')
+    #             client = Client(self)
+    #             if is_address:
+    #                 is_address, server_ip, server_port = client.handle_client_input(client_input, client_socket, server_ip, server_port)
+    #             else:
+    #                 is_address, server_ip, server_port = client.handle_client_input(client_input, client_socket)
+    #     except Exception as e:
+    #         print(f"{cp.YELLOW}Menu client: An error occurred: {e}. Try again.{cp.RESET}")
+    #     finally:
+    #         if client_socket:
+    #             client_socket.close()
+
     def client_menu(self):
         is_address = False
         server_ip = ""
@@ -103,9 +133,11 @@ class Menu:
                 print(f'Picked client_input: {client_input}')
                 client = Client(self)
                 if is_address:
-                    is_address, server_ip, server_port = client.handle_client_input(client_input, client_socket, server_ip, server_port)
+                    is_address, server_ip, server_port = client.handle_client_input(client_input, client_socket, server_ip,
+                                                                                    server_port)
                 else:
-                    is_address, server_ip, server_port = client.handle_client_input(client_input, client_socket)
+                    is_address, server_ip, server_port, client_socket = client.handle_client_input(client_input,
+                                                                                                   client_socket)
         except Exception as e:
             print(f"{cp.YELLOW}Menu client: An error occurred: {e}. Try again.{cp.RESET}")
         finally:
