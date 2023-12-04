@@ -86,7 +86,8 @@ class Client:
                 print(f"{cp.BLUE}keep_alive_client:{cp.RESET} im in the loop, thread is on")
                 print(f"{cp.BLUE}keep_alive_client:{cp.RESET} server address: {self.server_address}")
 
-                client_socket.sendto(self.initialize_message(FlagEnum.KA.value, 0), self.server_address)
+                with self.lock_socket:
+                    client_socket.sendto(self.initialize_message(FlagEnum.KA.value, 0), self.server_address)
                 print(f"{cp.BLUE}- Sending KA{cp.RESET}")
 
                 r_header = client_socket.recv(self.buff_size)
@@ -180,7 +181,8 @@ class Client:
                 self.create_thread(client_socket)
 
             # sending initial_header to server
-            client_socket.sendto(self.initialize_message(FlagEnum.INF.value, self.frag_order), self.server_address)
+            with self.lock_socket:
+                client_socket.sendto(self.initialize_message(FlagEnum.INF.value, self.frag_order), self.server_address)
 
             r_data = client_socket.recv(self.buff_size)
             self.receive_queue.put(r_data)
@@ -285,7 +287,8 @@ class Client:
             if message_type == 'F':
                 path_to_save_file = self.get_path_to_save_file(file_name)
                 print(f"Sending the file path to the server.")
-                client_socket.sendto(self.initialize_message(FlagEnum.FILE.value, self.frag_order, path_to_save_file.encode('utf-8')), self.server_address)
+                with self.lock_socket:
+                    client_socket.sendto(self.initialize_message(FlagEnum.FILE.value, self.frag_order, path_to_save_file.encode('utf-8')), self.server_address)
 
                 r_data = client_socket.recv(self.buff_size)
                 self.receive_queue.put(r_data)
@@ -314,9 +317,11 @@ class Client:
                         break
 
                     if self.is_bad_dgram(bad_dgram):
-                        client_socket.sendto(self.initialize_message(FlagEnum.DATA.value, self.frag_order, split_message) + bytes(101), self.server_address)
+                        with self.lock_socket:
+                            client_socket.sendto(self.initialize_message(FlagEnum.DATA.value, self.frag_order, split_message) + bytes(101), self.server_address)
                     else:
-                        client_socket.sendto(self.initialize_message(FlagEnum.DATA.value, self.frag_order, split_message), self.server_address)
+                        with self.lock_socket:
+                            client_socket.sendto(self.initialize_message(FlagEnum.DATA.value, self.frag_order, split_message), self.server_address)
 
                     print(f" - Sent fragment of {self.frag_order} - Size: {len(split_message)} bytes")
 
@@ -343,7 +348,8 @@ class Client:
 
                             if self.is_all(dgrams_num):
                                 print(f"{self.frag_order} fragments were sent.")
-                                client_socket.sendto(self.initialize_message(FlagEnum.FIN.value, 0), self.server_address)
+                                with self.lock_socket:
+                                    client_socket.sendto(self.initialize_message(FlagEnum.FIN.value, 0), self.server_address)
 
                             attempt_count = 0
                             is_exit = True
@@ -356,7 +362,8 @@ class Client:
                 if attempt_count == self.attempts:
                     print(f"{cp.RED}Maximum attempts reached. Unable to complete the operation.{cp.RESET}")
                     print(f"Last sent fragment was {self.frag_order} - Size: {len(split_message)} bytes")
-                    client_socket.sendto(self.initialize_message(FlagEnum.END.value, 0), self.server_address)
+                    with self.lock_socket:
+                        client_socket.sendto(self.initialize_message(FlagEnum.END.value, 0), self.server_address)
                     break
 
     def all_attempts(self, attempt_count: int):
