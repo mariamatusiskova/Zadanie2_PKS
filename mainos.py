@@ -12,7 +12,7 @@ from Header import Header
 from Menu import Menu
 from Validator import Validator
 
-CLIENT_IP ="0.0.0.0"
+CLIENT_IP ="127.0.0.1"
 CLIENT_PORT=50007
 
 SERVER_IP="127.0.0.1"
