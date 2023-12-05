@@ -7,7 +7,7 @@ class CRC32:
         # standard CRC32 polynomial
         self.poly = 0xEDB88320
 
-    def calculate(self, data: bytes) -> int:
+    def calculate(self, data):
         # iterates through each byte in  the data
         for byte in data:
             # data XORed

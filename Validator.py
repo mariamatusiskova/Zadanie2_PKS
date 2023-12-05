@@ -1,6 +1,6 @@
 import socket
 
-from ColorPalette import ColorPalette as cp
+from ColorPalette import color
 
 
 class Validator:
@@ -30,7 +30,7 @@ class Validator:
         elif message_type == 'T':
             return True
         else:
-            print(f"{cp.YELLOW}Invalid input. Use 'F' as a file or 'M' as a text message.{cp.RESET}")
+            print(f"{color.YELLOW}Invalid input. Use 'F' as a file or 'M' as a text message.{color.RESET}")
             return False
 
     @staticmethod
@@ -40,7 +40,7 @@ class Validator:
         elif answer == 'N':
             return True
         else:
-            print(f"{cp.YELLOW}Invalid input. Use 'Y' as yes or 'N' as a no.{cp.RESET}")
+            print(f"{color.YELLOW}Invalid input. Use 'Y' as yes or 'N' as a no.{color.RESET}")
             return False
 
     @staticmethod

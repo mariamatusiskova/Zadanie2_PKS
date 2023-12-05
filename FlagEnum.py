@@ -1,7 +1,7 @@
 from enum import Enum
 
 
-class FlagEnum(Enum):
+class flag_enum(Enum):
     INF = 1
     ACK = 2
     ACK_KA = 3
