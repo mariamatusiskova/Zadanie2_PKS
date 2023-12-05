@@ -13,10 +13,10 @@ from Menu import Menu
 from Validator import Validator
 
 CLIENT_IP ="0.0.0.0"
-CLIENT_PORT=5002
+CLIENT_PORT=50007
 
 SERVER_IP="127.0.0.1"
-SERVER_PORT=5000
+SERVER_PORT=50000
 
 MAX_FRAGMENT_SIZE=1465
 MAX_SIZE_NO_HEADER=MAX_FRAGMENT_SIZE-13
@@ -499,13 +499,12 @@ class Server(threading.Thread):
             # receiving response from the client
             r_data = self.sock.recv(BUFF_SIZE)
 
-            # sending initial_header to client
-            self.sock.sendto(create_header_of_fragment(flag_enum.ACK.value, 0), (CLIENT_IP,CLIENT_PORT))
-
             # processing received data
             r_flag = Menu.get_flag(r_data)
 
             if is_INF(r_flag):
+                # sending initial_header to client
+                self.sock.sendto(create_header_of_fragment(flag_enum.ACK.value, 0), (CLIENT_IP, CLIENT_PORT))
                 self.receiver()
             else:
                 print(f"{color.RED}Connection failed!{color.RESET}")
@@ -526,8 +525,11 @@ class Server(threading.Thread):
         self.switch_down_keepalive()
 
         while not RECEIVE_EVENT.is_set():
+            self.sock.sendto(create_header_of_fragment(flag_enum.ACK.value, 0), (CLIENT_IP, CLIENT_PORT))
             r_header = self.sock.recv(BUFF_SIZE)
             r_flag, r_frag_order, r_crc, r_data = menu.initialize_recv_header(r_header)
+
+            print(f"receiver: r_flag: {r_flag}")
 
             if is_FIN(r_flag):
                 print(f"FIN, end of connection.")
@@ -545,6 +547,7 @@ class Server(threading.Thread):
                 print(f"after convert: {convert_path_to_os}")
 
             if Validator.is_crc_valid(r_data, r_crc, crc) and is_not_in_dict(r_frag_order, save_frag_message):
+                print(f"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa.")
                 if are_DATA(r_flag):
                     print(f"Received fragment of {r_frag_order} - Size: {len(r_data)} bytes")
                     save_frag_message[r_frag_order] = r_data
@@ -579,8 +582,10 @@ def main():
     global SWAP_ROLES
     user_choice = 0
 
-    # SERVER_IP,SERVER_PORT = self.menu.get_ip_input("server/receiver"), self.menu.get_port_input("server/receiver")
-    # CLIENT_IP,CLIENT_PORT = self.menu.get_ip_input("client/sender"), self.menu.get_port_input("client/sender")
+    menu = Menu()
+
+    #SERVER_IP,SERVER_PORT = menu.get_ip_input("server/receiver"), int(menu.get_port_input("server/receiver"))
+    #CLIENT_IP,CLIENT_PORT = menu.get_ip_input("client/sender"), int(menu.get_port_input("client/sender"))
 
     while user_choice != 3:
 
